@@ -1,0 +1,11 @@
+# Dipakai build yang berkonteks root repo (worker). Backend dan frontend punya .dockerignore sendiri.
+.git
+.env
+.env.*
+data
+frontend
+nginx
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/tests

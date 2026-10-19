@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     cookie_name: str = "access_token"
     cookie_secure: bool = False
 
+    # ChromaDB (vector DB). Hanya dijangkau dari jaringan Docker, tidak dibuka ke host.
+    chroma_host: str = "chromadb"
+    chroma_port: int = 8000
+    chroma_collection: str = "kms_chunks"
+
+    # Ingest worker. Model bisa diganti lewat env; ganti model = index ulang semua dokumen.
+    embedding_model: str = "intfloat/multilingual-e5-small"
+    embedding_batch_size: int = 32
+    worker_poll_seconds: float = 5.0
+
     # Akun admin awal. Dibuat oleh seed hanya jika kedua nilai terisi dan belum ada user.
     seed_admin_email: str = ""
     seed_admin_password: str = ""

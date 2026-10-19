@@ -2,8 +2,9 @@
 
 Capstone Kelompok 31, Prodi S1 Sistem Informasi, Telkom University Jakarta.
 
-Status saat ini: kerangka minimal + **SCRUM-28 (F-01 Login dan logout pengguna)**.
-Worker ingest, ChromaDB, dan Ollama belum ada di repo ini.
+Status saat ini: login/logout (**SCRUM-28**) dan pipeline data pertama: ETL korpus ke Postgres
+(**SCRUM-36**) serta chunking, embedding, dan indexing ke ChromaDB (**SCRUM-38**).
+Belum ada: chat/RAG, unggah dokumen, Ollama.
 
 ## Arsitektur (yang sudah ada)
 
@@ -11,6 +12,9 @@ Worker ingest, ChromaDB, dan Ollama belum ada di repo ini.
 Browser -> Nginx (:HTTP_PORT)
              |-- /      -> Frontend (Next.js)
              '-- /api/  -> Backend (FastAPI) -> PostgreSQL
+
+Ingest Worker --baca dokumen "pending"--> PostgreSQL
+              --tulis vektor------------> ChromaDB
 ```
 
 ## Prasyarat
@@ -20,6 +24,9 @@ Browser -> Nginx (:HTTP_PORT)
   status *Engine running*) sebelum menjalankan perintah `docker compose` apa pun.
 
 Python dan Node.js di komputer **tidak diperlukan** untuk menjalankan aplikasi maupun test.
+
+Ruang disk: image worker (PyTorch CPU + sentence-transformers) berukuran beberapa GB, dan model
+embedding (~470 MB) diunduh sekali saat dokumen pertama diproses. Build pertama jadi lebih lama.
 
 ## Menjalankan (pertama kali)
 
@@ -78,8 +85,70 @@ di-seed bila belum ada. Mengubah `POSTGRES_PASSWORD`, `SEED_ADMIN_EMAIL`, atau `
 setelah run pertama tidak berpengaruh. Reset dengan `docker compose down -v` lalu
 `docker compose up -d`. Perintah ini **menghapus seluruh data database**.
 
+**Worker tidak memproses apa pun / dokumen tetap `pending`**
+Lihat `docker compose logs worker`. Penyebab umum: model embedding belum selesai diunduh (tunggu),
+tidak ada koneksi internet saat unduhan pertama, atau ChromaDB belum sehat (`docker compose ps`).
+Selama masalahnya di infrastruktur, dokumen sengaja dibiarkan `pending`, bukan `failed`.
+
 **Port 8080 sudah dipakai aplikasi lain**
 Ubah `HTTP_PORT` di `.env` (misalnya `8081`), lalu `docker compose up -d`.
+
+## Pipeline data
+
+```
+corpus_clean.jsonl --ETL--> documents + document_pages (status: pending)
+                                   |  worker mengambil "pending"
+                                   v
+                     chunking -> embedding -> ChromaDB (collection kms_chunks) + tabel chunks
+                                   |
+                                   v  status: indexed (atau failed + error_message)
+```
+
+**1. Siapkan korpus.** Salin `corpus_clean.jsonl` (dari vault tim) ke `data/seed/corpus_clean.jsonl`.
+Folder `data/` sengaja tidak di-commit.
+
+**2. Muat ke Postgres (ETL).** Aman dijalankan berulang: dokumen dengan `content_hash` yang sama dilewati.
+
+```powershell
+docker compose exec backend python -m app.etl.load_corpus /data/seed/corpus_clean.jsonl
+```
+
+Hasilnya laporan: dibaca, baru, dilewati (duplikat), dan baris gagal validasi beserta alasannya.
+
+**3. Biarkan worker meng-index.** Worker berjalan otomatis dan memproses dokumen `pending`.
+Pertama kali, ia mengunduh model embedding (beberapa menit). Pantau:
+
+```powershell
+docker compose logs -f worker
+docker compose exec postgres psql -U kms -d kms -c "select status, count(*) from documents group by status;"
+```
+
+**4. Coba pencarian** (belum ada endpoint publik, hanya CLI di container worker):
+
+```powershell
+docker compose exec worker python -m app.retrieval.search_cli "bagaimana alur penundaan pembayaran BPP?" --k 5
+docker compose exec worker python -m app.retrieval.search_cli "..." --role mahasiswa
+```
+
+Tanpa `--role`, hanya dokumen `publik` yang dicari. `GET /api/health` kini juga mengecek ChromaDB.
+
+**Index ulang.** Dokumen yang gagal tidak diulang otomatis. Kembalikan ke `pending` dengan:
+
+```powershell
+docker compose exec backend python -m app.ingest.requeue --failed   # hanya yang gagal
+docker compose exec backend python -m app.ingest.requeue --all      # semua (wajib bila EMBEDDING_MODEL diganti)
+```
+
+Catatan desain:
+- Akses dokumen disimpan di `documents.allowed_roles` (kode peran atau `publik`). Semua data seed
+  `publik` karena matriks RBAC (SCRUM-25) belum final. Filter akses dipakai ulang oleh SCRUM-44 lewat
+  `app/retrieval/access.py`.
+- ChromaDB tidak menerima list di metadata, jadi tiap peran disimpan sebagai flag (`role_publik`,
+  `role_dosen`, ...) dan difilter langsung di ChromaDB.
+- Vektor dihitung dari `"{judul}. {isi chunk}"`, bukan isi chunk saja (`embedding_text` di
+  `app/ingest/indexer.py`), supaya chunk yang tidak menyebut topik halamannya tetap ketemu. Teks yang
+  disimpan (Postgres dan ChromaDB) tetap isi aslinya. Mengubah fungsi itu juga berarti index ulang.
+- Mengganti `EMBEDDING_MODEL` mengubah ruang vektor: semua dokumen harus di-index ulang.
 
 ## Autentikasi
 
@@ -111,8 +180,10 @@ Jalankan `--build` dulu bila test atau kode berubah, karena kode disalin ke imag
 ## Struktur
 
 ```
-backend/    FastAPI: app/{core,api,models,schemas}, alembic/, tests/
+backend/    FastAPI: app/{core,api,models,schemas,etl,ingest,retrieval}, alembic/, tests/
+worker/     Dockerfile + dependensi ML untuk ingest worker (kodenya di backend/app/ingest)
 frontend/   Next.js (App Router, TypeScript, Tailwind)
 nginx/      nginx.conf
+data/       korpus seed (tidak di-commit)
 docker-compose.yml, .env.example
 ```

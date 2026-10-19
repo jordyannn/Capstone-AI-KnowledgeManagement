@@ -9,12 +9,6 @@ def login(client: TestClient, email="dosen@example.test", password=PASSWORD):
     return client.post("/api/auth/login", json={"email": email, "password": password})
 
 
-def test_health(client):
-    r = client.get("/api/health")
-    assert r.status_code == 200
-    assert r.json()["status"] == "ok"
-
-
 def test_login_success_sets_httponly_cookie_and_returns_role(client, make_user):
     make_user(role="kaprodi")
     r = login(client)

@@ -22,9 +22,48 @@ services:
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrator}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+    volumes:
+      # Data seed (korpus JSONL) dibaca oleh perintah ETL. Folder ini tidak di-commit.
+      - ./data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    healthcheck:
+      # Sehat = migrasi selesai, server hidup, dan Postgres + ChromaDB terjangkau.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+      CHROMA_COLLECTION: ${CHROMA_COLLECTION:-kms_chunks}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-intfloat/multilingual-e5-small}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-5}
+    volumes:
+      # Cache model Hugging Face, supaya tidak diunduh ulang setiap container dibuat ulang.
+      - model_cache:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+      backend:
+        condition: service_healthy # menunggu migrasi database selesai
+    restart: unless-stopped
 
   postgres:
     image: postgres:17-alpine
@@ -40,5 +79,22 @@ services:
       timeout: 3s
       retries: 10
 
+  chromadb:
+    # Versi server harus sama dengan chromadb-client di worker/requirements.txt.
+    image: chromadb/chroma:1.5.9
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /data
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chroma_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
 volumes:
   postgres_data:
+  chroma_data:
+  model_cache:

@@ -20,13 +20,20 @@ PASSWORD = "Sandi-Rahasia-123"
 
 
 @pytest.fixture()
-def db():
+def session_factory():
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine, expire_on_commit=False)()
-    seed_roles(session)
-    yield session
-    session.close()
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with factory() as session:
+        seed_roles(session)
+    yield factory
+    engine.dispose()
+
+
+@pytest.fixture()
+def db(session_factory):
+    with session_factory() as session:
+        yield session
 
 
 @pytest.fixture()
