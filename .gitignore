@@ -12,3 +12,6 @@ node_modules/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# Data seed/korpus (tidak di-commit)
+data/
