@@ -24,6 +24,13 @@ services:
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrator}
       CHROMA_HOST: chromadb
       CHROMA_PORT: "8000"
+      # Login SSO Microsoft (mati bawaannya). Client secret hanya dari .env.
+      SSO_ENABLED: ${SSO_ENABLED:-false}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID:-}
+      SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET:-}
+      SSO_TENANT_ID: ${SSO_TENANT_ID:-90affe0f-c2a3-4108-bb98-6ceb4e94ef15}
+      SSO_REDIRECT_URI: ${SSO_REDIRECT_URI:-http://localhost:8080/api/auth/sso/callback}
+      SSO_ALLOWED_DOMAINS: ${SSO_ALLOWED_DOMAINS:-telkomuniversity.ac.id,student.telkomuniversity.ac.id}
     volumes:
       # Data seed (korpus JSONL) dibaca oleh perintah ETL. Folder ini tidak di-commit.
       - ./data:/data:ro

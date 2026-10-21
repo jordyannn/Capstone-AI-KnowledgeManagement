@@ -157,13 +157,72 @@ Catatan desain:
 | `POST /api/auth/login` | Verifikasi email + kata sandi (bcrypt), set cookie `access_token` (JWT, httpOnly, SameSite=Lax) |
 | `POST /api/auth/logout` | Menghapus cookie |
 | `GET /api/auth/me` | Data pengguna + peran; memperpanjang sesi |
+| `GET /api/auth/sso/status` | `{"enabled": true/false}`; dipakai halaman login untuk menampilkan tombol SSO |
+| `GET /api/auth/sso/login` | Memulai login SSO Microsoft (redirect ke Microsoft). 404 bila SSO mati |
+| `GET /api/auth/sso/callback` | Tujuan redirect dari Microsoft; memasang cookie sesi yang sama. 404 bila SSO mati |
 
 - Sesi berakhir setelah `ACCESS_TOKEN_MINUTES` (bawaan 30) tanpa request terautentikasi.
 - Logout menghapus cookie di browser. Token yang sudah terlanjur disalin tetap valid sampai
   kedaluwarsa (maksimal `ACCESS_TOKEN_MINUTES`).
 - Lima peran (Admin, Kaprodi, Dosen, Staf Administrasi, Mahasiswa) disimpan di tabel `roles`,
   bukan hard-coded. Hak akses per peran menunggu matriks RBAC (SCRUM-25).
-- Belum ada: pembuatan pengguna lewat UI (manajemen pengguna), SSO kampus, pembatasan percobaan login.
+- Belum ada: pembuatan pengguna lewat UI (manajemen pengguna), pembatasan percobaan login.
+
+## Login SSO Microsoft
+
+Tombol **"Masuk dengan akun Telkom University"** memakai Microsoft Entra ID (OpenID Connect,
+authorization code + PKCE). Login email + kata sandi tetap ada. SSO **mati bawaannya**.
+
+### Mengaktifkan
+
+1. Di Azure Portal, buka App registration aplikasi ini (`KMS SI Jakarta (dev)`). Salin
+   **Application (client) ID** dari halaman Overview.
+2. Buat client secret: **Certificates & secrets → New client secret**. Salin kolom **Value**
+   (bukan *Secret ID*). Nilainya hanya tampil sekali, dan secret punya masa berlaku: catat
+   tanggal kedaluwarsanya.
+3. Isi `.env` (file ini di-gitignore; **jangan pernah** menaruh secret di kode, README, atau commit):
+   ```
+   SSO_ENABLED=true
+   SSO_CLIENT_ID=<Application (client) ID>
+   SSO_CLIENT_SECRET=<Value dari langkah 2>
+   ```
+4. Terapkan: `docker compose up -d` (backend dibuat ulang karena env berubah).
+5. Buka **`http://localhost:8080/login`**, bukan `127.0.0.1`. Redirect URI di Azure dan cookie sesi
+   terikat ke `localhost`. Redirect URI yang terdaftar harus persis
+   `http://localhost:8080/api/auth/sso/callback`; bila `HTTP_PORT` diubah, ubah juga `SSO_REDIRECT_URI`
+   dan daftarkan URI barunya di Azure.
+
+Bila `SSO_ENABLED=true` tetapi client ID atau secret kosong, backend **sengaja menolak start** dengan
+pesan jelas (cek `docker compose logs backend`).
+
+### Aturan akun
+
+- Hanya akun dari tenant Entra ID Tel-U (`SSO_TENANT_ID`) dengan domain di `SSO_ALLOWED_DOMAINS`
+  yang diterima. Domain dicocokkan persis, bukan sebagai akhiran.
+- Email **`@student.telkomuniversity.ac.id`** yang belum terdaftar otomatis dibuat sebagai **Mahasiswa**.
+  Itu mencakup mahasiswa Tel-U mana pun, bukan hanya SI Jakarta; saat ini Mahasiswa hanya melihat
+  dokumen publik.
+- Email lain di domain yang diizinkan (Dosen, Staf, Kaprodi) **tidak dibuat otomatis**. Akunnya harus
+  dibuat admin lebih dulu (manajemen pengguna: SCRUM-30, belum ada). Hasilnya
+  "Akun belum terdaftar, hubungi admin prodi".
+- Akun yang sudah ada dengan email yang sama **ditautkan** pada login SSO pertama dan mempertahankan
+  perannya. Tautan ini mengandalkan klaim email dari Microsoft, yang bisa berubah; risikonya rendah
+  karena tenant dikelola IT Tel-U dan dibatasi domain, dan akun yang sudah tertaut ke identitas lain
+  tidak bisa diambil alih. Identitas selanjutnya dikenali lewat `oid`, bukan email.
+- Akun SSO tidak punya kata sandi dan **tidak bisa** login lewat form email + sandi.
+- Logout hanya mengakhiri sesi aplikasi, bukan sesi Microsoft di browser. Karena itu login selalu
+  meminta pengguna memilih akun.
+
+### Mematikan
+
+`SSO_ENABLED=false` di `.env`, lalu `docker compose up -d`. Tombol hilang dan endpoint SSO menjawab 404.
+Pengguna SSO yang sudah ada tetap tersimpan, tetapi tidak bisa masuk sampai SSO diaktifkan lagi
+(mereka tidak punya kata sandi).
+
+### Deploy ke server
+
+Microsoft hanya mengizinkan redirect URI `http://` untuk `localhost`. Untuk server dibutuhkan HTTPS dan
+domain, `COOKIE_SECURE=true`, `SSO_REDIRECT_URI` yang sesuai, dan URI itu didaftarkan di Azure.
 
 ## Test
 

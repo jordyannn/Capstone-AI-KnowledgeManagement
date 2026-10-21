@@ -20,8 +20,12 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     user = db.scalar(select(User).where(User.email == email))
 
     # Selalu verifikasi hash agar waktu respons tidak membocorkan apakah email terdaftar.
-    password_ok = verify_password(payload.password, user.password_hash if user else DUMMY_HASH)
-    if user is None or not password_ok or not user.is_active:
+    # User SSO tidak punya password_hash: tetap verifikasi hash tiruan (waktu sama), lalu tolak
+    # secara eksplisit. Penolakan tidak boleh bergantung pada hasil verifikasi, karena hash tiruan
+    # cocok dengan sandi "dummy-password".
+    has_password = user is not None and user.password_hash is not None
+    password_ok = verify_password(payload.password, user.password_hash if has_password else DUMMY_HASH)
+    if user is None or not has_password or not password_ok or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email atau kata sandi salah.")
 
     user.last_login_at = datetime.now(timezone.utc)
