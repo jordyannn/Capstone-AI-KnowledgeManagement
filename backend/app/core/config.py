@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     embedding_batch_size: int = 32
     worker_poll_seconds: float = 5.0
 
+    # Chat RAG versi awal. Retrieval lewat layanan internal "rag" (image worker, punya model embedding);
+    # jawaban dari Ollama di host. Skor = kemiripan cosine; di bawah ambang tidak dipakai sebagai konteks.
+    rag_url: str = "http://rag:8001"
+    ollama_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "qwen2.5:7b"
+    ollama_num_ctx: int = 8192
+    ollama_timeout_seconds: float = 180.0
+    chat_top_k: int = 6
+    chat_min_score: float = 0.80
+
     # Akun admin awal. Dibuat oleh seed hanya jika kedua nilai terisi dan belum ada user.
     seed_admin_email: str = ""
     seed_admin_password: str = ""

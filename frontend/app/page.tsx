@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchMe, logout, User } from "@/lib/auth";
@@ -26,7 +27,13 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen">
       <aside className="flex w-64 flex-col justify-between border-r border-gray-200 bg-white p-4">
-        <div className="text-sm font-semibold">Knowledge Management</div>
+        <div className="space-y-4">
+          <div className="text-sm font-semibold">Knowledge Management</div>
+          <nav className="space-y-1 text-sm">
+            <Link href="/" className="block rounded bg-gray-100 px-2 py-1 font-medium">Beranda</Link>
+            <Link href="/chat" className="block rounded px-2 py-1 hover:bg-gray-100">Chat Asisten</Link>
+          </nav>
+        </div>
         <div className="space-y-3">
           <div className="text-sm">
             <div className="font-medium">{user.full_name}</div>
@@ -45,6 +52,9 @@ export default function HomePage() {
         <p className="mt-2 text-sm text-gray-500">
           Anda masuk sebagai {user.role.name}.
         </p>
+        <Link href="/chat" className="mt-6 inline-block rounded bg-red-600 px-4 py-2 text-sm font-medium text-white">
+          Buka Chat Asisten
+        </Link>
       </main>
     </div>
   );

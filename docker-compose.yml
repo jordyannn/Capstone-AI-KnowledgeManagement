@@ -31,6 +31,12 @@ services:
       SSO_TENANT_ID: ${SSO_TENANT_ID:-90affe0f-c2a3-4108-bb98-6ceb4e94ef15}
       SSO_REDIRECT_URI: ${SSO_REDIRECT_URI:-http://localhost:8080/api/auth/sso/callback}
       SSO_ALLOWED_DOMAINS: ${SSO_ALLOWED_DOMAINS:-telkomuniversity.ac.id,student.telkomuniversity.ac.id}
+      # Chat RAG versi awal. Ollama berjalan di host (GPU), bukan di container.
+      RAG_URL: http://rag:8001
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Data seed (korpus JSONL) dibaca oleh perintah ETL. Folder ini tidak di-commit.
       - ./data:/data:ro
@@ -63,6 +69,8 @@ services:
     volumes:
       # Cache model Hugging Face, supaya tidak diunduh ulang setiap container dibuat ulang.
       - model_cache:/models
+      # Dokumen PDF untuk `python -m app.etl.load_pdfs /data/dokumen`. Folder ini tidak di-commit.
+      - ./data:/data:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,6 +78,26 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy # menunggu migrasi database selesai
+    restart: unless-stopped
+
+  rag:
+    # Layanan retrieval internal: image yang sama dengan worker (punya model embedding).
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    command: ["uvicorn", "app.rag_service:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+      CHROMA_COLLECTION: ${CHROMA_COLLECTION:-kms_chunks}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-intfloat/multilingual-e5-small}
+    volumes:
+      - model_cache:/models
+    depends_on:
+      chromadb:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
