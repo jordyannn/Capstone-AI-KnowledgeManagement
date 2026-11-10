@@ -1,0 +1,528 @@
+{
+  "summary": {
+    "label": "stem-7b",
+    "n": 34,
+    "retrieval_n": 30,
+    "top1": 14,
+    "top3": 27,
+    "top6": 28,
+    "mrr": 0.678,
+    "pass": 26,
+    "answer_pass": 20,
+    "answer_n": 28,
+    "false_escalate": 1,
+    "missed_escalate": 0,
+    "seconds_median": 19.85,
+    "seconds_max": 44.8
+  },
+  "rows": [
+    {
+      "id": "tak-01",
+      "topic": "TAK",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 27.9,
+      "escalate": false,
+      "answer": "60 poin [2]",
+      "cited": [
+        "Nota Dinas Pembaruan Pedoman TAK 2026 hal. 1"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "akd-01",
+      "topic": "beban studi",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 16.8,
+      "escalate": false,
+      "answer": "18 SKS [1]",
+      "cited": [
+        "Pedoman Akademik Universitas Telkom 2026 hal. 20"
+      ],
+      "keywords_ok": false,
+      "citation_ok": true,
+      "pass": false
+    },
+    {
+      "id": "akd-02",
+      "topic": "beban studi",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 18.0,
+      "escalate": false,
+      "answer": "Berdasarkan Tabel 1 dalam Pedoman Akademik Universitas Telkom 2026 [1], jika IPS Anda 3,00 atau kurang, maka beban belajar maksimal yang dapat Anda ambil adalah 20 SKS.",
+      "cited": [
+        "Pedoman Akademik Universitas Telkom 2026 hal. 20"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "akd-03",
+      "topic": "masa studi",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 20.0,
+      "escalate": false,
+      "answer": "14 semester [2]",
+      "cited": [
+        "Pedoman Akademik Universitas Telkom 2026 hal. 42"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "akd-04",
+      "topic": "SKS",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 19.6,
+      "escalate": false,
+      "answer": "45 jam [1][2][3][4][5][6]",
+      "cited": [
+        "Buku Kurikulum 2024 S1 Sistem Informasi  hal. 160",
+        "Pedoman Akademik Universitas Telkom 2026 hal. 18",
+        "Pedoman Akademik Universitas Telkom 2026 hal. 19",
+        "Buku Kurikulum 2024 S1 Sistem Informasi  hal. 160",
+        "Pedoman Akademik Universitas Telkom 2026 hal. 19",
+        "Pedoman Akademik Universitas Telkom 2026 hal. 19"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "cuti-01",
+      "topic": "cuti",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 44.8,
+      "escalate": false,
+      "answer": "Cara mengajukan cuti akademik adalah sebagai berikut [4][5][6]:\n\n1. Mahasiswa harus mengajukan permohonan cuti akademik paling lambat pada masa PRS (Periode Rekonsiliasi Studi) pada semester yang bersangkutan [5][6].\n\n2. Permohonan harus disetujui oleh dosen wali, ketua program studi, admin Fakultas dan/atau UPPS, dan wakil dekan bidang akademik/wakil direktur akademik Fakultas dan/atau UPPS [4][6",
+      "cited": [
+        "Pedoman Akademik Universitas Telkom 2026 hal. 51",
+        "Kalender Pendidikan Universitas Telkom 2 hal. 1",
+        "Pedoman Akademik Universitas Telkom 2026 hal. 50",
+        "Pedoman Akademik Universitas Telkom 2026 hal. 50"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "cuti-02",
+      "topic": "cuti",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 23.6,
+      "escalate": false,
+      "answer": "Ya, mahasiswa yang cuti akademik tetap harus membayar biaya status sebesar 10% dari BPP paket sesuai ketentuan yang berlaku [9][10].",
+      "cited": [],
+      "keywords_ok": true,
+      "citation_ok": false,
+      "pass": false
+    },
+    {
+      "id": "kal-01",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 30.4,
+      "escalate": false,
+      "answer": "Periode Pengajuan Cuti & Undur Diri Semester 2026-1 adalah 13 Juli - 25 September 2026. [1][4]",
+      "cited": [
+        "Kalender Pendidikan Universitas Telkom 2 hal. 5",
+        "Kalender Pendidikan Universitas Telkom 2 hal. 2"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kal-02",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 24.6,
+      "escalate": false,
+      "answer": "21 - 25 September 2026 [1]",
+      "cited": [
+        "Kalender Pendidikan Universitas Telkom 2 hal. 5"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kal-03",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 25.6,
+      "escalate": false,
+      "answer": "Wisuda I Tahun Akademik 2026/2027 dilaksanakan pada tanggal 27 - 28 November 2026 [2][3].",
+      "cited": [
+        "Kalender Pendidikan Universitas Telkom 2 hal. 6",
+        "Wisuda hal. 1"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kal-04",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 23.6,
+      "escalate": false,
+      "answer": "5 - 9 Oktober 2026 [2]",
+      "cited": [
+        "Kalender Pendidikan Universitas Telkom 2 hal. 6"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kal-05",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 6,
+      "seconds": 32.9,
+      "escalate": false,
+      "answer": "Batas sidang yudisium semester 2026-1 adalah 27 Agustus 2026 [2][5].",
+      "cited": [
+        "Kalender Pendidikan Universitas Telkom 2 hal. 5",
+        "Kalender Pendidikan Universitas Telkom 2 hal. 2"
+      ],
+      "keywords_ok": false,
+      "citation_ok": false,
+      "pass": false
+    },
+    {
+      "id": "ta-01",
+      "topic": "sidang TA",
+      "expect": "answer",
+      "rank": null,
+      "seconds": 24.8,
+      "escalate": false,
+      "answer": "Syarat untuk mendaftar sidang tugas akhir meliputi:\n\n1. Sudah mengambil Mata Kuliah Penyusunan Proposal Ilmiah [2][6]\n2. Sudah lulus Mata Kuliah minimal 125 SKS [6]\n3. Sudah lulus seluruh Mata Kuliah Tingkat Pertama [6]\n4. Sudah lulus seluruh Mata Kuliah Praktikum [6]",
+      "cited": [
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 25",
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 15"
+      ],
+      "keywords_ok": false,
+      "citation_ok": false,
+      "pass": false
+    },
+    {
+      "id": "ta-02",
+      "topic": "TA",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 18.1,
+      "escalate": false,
+      "answer": "4 SKS [1]",
+      "cited": [
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 9"
+      ],
+      "keywords_ok": true,
+      "citation_ok": false,
+      "pass": false
+    },
+    {
+      "id": "ta-03",
+      "topic": "TA",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 12.1,
+      "escalate": false,
+      "answer": "Prasyarat untuk bisa mengambil mata kuliah Tugas Akhir adalah:\na) Sudah mengambil Mata Kuliah Penyusunan Proposal Ilmiah [2][3]\nb) Sudah lulus Mata Kuliah minimal 125 SKS [2]\nc) Sudah lulus seluruh Mata Kuliah Tingkat Pertama [2]\nd) Sudah lulus seluruh Mata Kuliah Praktikum [2]",
+      "cited": [
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 15",
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 51"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "ta-04",
+      "topic": "yudisium",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 32.5,
+      "escalate": false,
+      "answer": "Dokumen yang harus disiapkan untuk yudisium setelah sidang tugas akhir berdasarkan Buku Panduan Tugas Akhir FRI 2024 (halaman 17) adalah:\n\na) Soft file Buku Tugas Akhir yang sudah disahkan oleh Pembimbing 1 dan 2\nb) Soft file makalah yang diunggah ke Open Library\nc) Soft file slide presentasi sidang Tugas Akhir\nd) Soft file referensi (e-book) bila ada\ne) Bukti persetujuan revisi (tangkap layar dar",
+      "cited": [
+        "Pedoman Akademik Universitas Telkom 2026 hal. 29",
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 17"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "ta-05",
+      "topic": "SK TA",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 15.4,
+      "escalate": false,
+      "answer": "iGracias [1]",
+      "cited": [
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 18"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "ta-06",
+      "topic": "format TA",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 19.6,
+      "escalate": false,
+      "answer": "Kertas ukuran A4 dengan berat 80 g/m2 (HVS 80 GSM) [1][2].",
+      "cited": [
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 47",
+        "Buku Panduan Tugas Akhir FRI 2024 hal. 40"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kp-01",
+      "topic": "KPPM",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 23.2,
+      "escalate": false,
+      "answer": "Syarat mengambil Kerja Praktek dan Pengabdian Masyarakat (KPPM) adalah mahasiswa aktif Program S1 yang sudah lulus minimal 90 SKS dengan IPK ≥ 2,00, dan sudah dinyatakan lulus Tingkat I/ Tahap Pertama Bersama (TPB) [1].",
+      "cited": [
+        "Buku Pedoman KPPM FRI 2025 hal. 19"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kp-02",
+      "topic": "KPPM",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 20.4,
+      "escalate": false,
+      "answer": "Durasi pelaksanaan KPPM adalah selama 8 (delapan) minggu di luar jadwal perkuliahan, pada jam kerja penuh (8 jam per hari) dalam hari kerja penuh (5 hari per minggu) [1].",
+      "cited": [
+        "Buku Pedoman KPPM FRI 2025 hal. 19"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kp-03",
+      "topic": "KPPM",
+      "expect": "answer",
+      "rank": null,
+      "seconds": 17.3,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": false,
+      "citation_ok": false,
+      "pass": false
+    },
+    {
+      "id": "mbkm-01",
+      "topic": "MBKM",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 17.8,
+      "escalate": false,
+      "answer": "2 semester [1][3]",
+      "cited": [
+        "Panduan Pembelajaran di Luar Program Stu hal. 16",
+        "Panduan Pembelajaran di Luar Program Stu hal. 16"
+      ],
+      "keywords_ok": false,
+      "citation_ok": true,
+      "pass": false
+    },
+    {
+      "id": "ai-01",
+      "topic": "AI",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 19.4,
+      "escalate": false,
+      "answer": "Ya, mahasiswa wajib menyatakan penggunaan AI dalam tugas mereka. Hal ini sesuai dengan pedoman yang diberikan dalam [2] di mana mahasiswa diwajibkan untuk menyatakan secara terbuka peran AI dalam tugas atau karya ilmiah yang diserahkan.",
+      "cited": [
+        "Pedoman Penggunaan AI untuk Pembelajaran hal. 34"
+      ],
+      "keywords_ok": true,
+      "citation_ok": false,
+      "pass": false
+    },
+    {
+      "id": "ai-02",
+      "topic": "AI",
+      "expect": "answer",
+      "rank": 3,
+      "seconds": 21.0,
+      "escalate": false,
+      "answer": "Penggunaan AI yang dilarang bagi mahasiswa termasuk dalam kategori unacceptable risk, yaitu:\n- Mengunggah data pribadi (identitas, nilai, dll) ke sistem AI [3][4]\n- Mengklaim hasil AI sebagai karya pribadi [3][4]\n- Menyerahkan penilaian atau riset literatur sepenuhnya kepada AI tanpa keterlibatan manusia [3][4]",
+      "cited": [
+        "Pedoman Penggunaan AI untuk Pembelajaran hal. 28",
+        "Pedoman Penggunaan AI untuk Pembelajaran hal. 28"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "kur-01",
+      "topic": "kurikulum",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 15.5,
+      "escalate": false,
+      "answer": "145 SKS [2]",
+      "cited": [
+        "Buku Kurikulum 2024 S1 Sistem Informasi  hal. 161"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "web-01",
+      "topic": "kontak",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 16.3,
+      "escalate": false,
+      "answer": "+62 822-5856-9083 [1]",
+      "cited": [
+        "Kontak hal. 1"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "web-02",
+      "topic": "komplain",
+      "expect": "answer",
+      "rank": 1,
+      "seconds": 19.7,
+      "escalate": false,
+      "answer": "Komplain soal nilai mata kuliah dapat disampaikan dengan menghubungi dosen pengampu MK atau dosen wali [1] atau mengisi form komplain prodi di https://linktr.ee/sisfor_tukj [1].",
+      "cited": [
+        "Komplain dan Masukan hal. 1"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "web-03",
+      "topic": "akreditasi",
+      "expect": "answer",
+      "rank": 3,
+      "seconds": 18.6,
+      "escalate": false,
+      "answer": "Akreditasi Program Studi S1 Sistem Informasi Telkom University Jakarta adalah Baik Sekali [3][4].",
+      "cited": [
+        "FAQ hal. 1",
+        "S1 Sistem Informasi hal. 1"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    },
+    {
+      "id": "bpp-01",
+      "topic": "BPP",
+      "expect": "answer_or_escalate",
+      "rank": 2,
+      "seconds": 21.8,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": false,
+      "citation_ok": false,
+      "pass": true
+    },
+    {
+      "id": "sempro-01",
+      "topic": "sempro",
+      "expect": "answer_or_escalate",
+      "rank": 1,
+      "seconds": 24.6,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": false,
+      "citation_ok": false,
+      "pass": true
+    },
+    {
+      "id": "out-01",
+      "topic": "di luar cakupan",
+      "expect": "escalate",
+      "seconds": 19.6,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": null,
+      "citation_ok": null,
+      "pass": true
+    },
+    {
+      "id": "out-02",
+      "topic": "di luar cakupan",
+      "expect": "escalate",
+      "seconds": 18.7,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": null,
+      "citation_ok": null,
+      "pass": true
+    },
+    {
+      "id": "out-03",
+      "topic": "data pribadi",
+      "expect": "escalate",
+      "seconds": 21.2,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": null,
+      "citation_ok": null,
+      "pass": true
+    },
+    {
+      "id": "out-04",
+      "topic": "di luar cakupan",
+      "expect": "escalate",
+      "seconds": 14.9,
+      "escalate": true,
+      "answer": "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi.",
+      "cited": [],
+      "keywords_ok": null,
+      "citation_ok": null,
+      "pass": true
+    }
+  ]
+}

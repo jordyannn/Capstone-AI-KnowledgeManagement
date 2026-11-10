@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from app.api import chat as chat_module
@@ -69,6 +71,72 @@ def test_chat_escalates_when_model_says_not_found(client, make_user, monkeypatch
     monkeypatch.setattr(chat_module.httpx, "post", fake_post([hit(1)], "TIDAK_DITEMUKAN"))
     body = client.post("/api/chat", json={"question": "jadwal kuliah saya?"}).json()
     assert body["escalate"] is True
+
+
+class FakeStream:
+    def __init__(self, lines):
+        self.lines = lines
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def raise_for_status(self):
+        pass
+
+    def iter_lines(self):
+        yield from self.lines
+
+
+def ollama_lines(*pieces):
+    out = [json.dumps({"message": {"content": p}, "done": False}) for p in pieces]
+    out.append(json.dumps({"message": {"content": ""}, "done": True}))
+    return out
+
+
+def parse_sse(text):
+    events = []
+    for block in text.strip().split("\n\n"):
+        lines = dict(l.split(": ", 1) for l in block.splitlines())
+        events.append((lines["event"], json.loads(lines["data"])))
+    return events
+
+
+def test_chat_stream_sends_tokens_then_done(client, make_user, monkeypatch):
+    login(client, make_user)
+    monkeypatch.setattr(chat_module.httpx, "post", fake_post([hit(1), hit(2)], ""))
+    monkeypatch.setattr(
+        chat_module.httpx, "stream", lambda *a, **k: FakeStream(ollama_lines("Syarat sidang adalah ", "lulus 144 SKS [2]."))
+    )
+    r = client.post("/api/chat/stream", json={"question": "syarat sidang?"})
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
+    events = parse_sse(r.text)
+    assert "".join(e[1]["text"] for e in events if e[0] == "token") == "Syarat sidang adalah lulus 144 SKS [2]."
+    kind, done = events[-1]
+    assert kind == "done" and done["escalate"] is False and [s["number"] for s in done["sources"]] == [2]
+
+
+def test_chat_stream_hides_not_found_and_escalates(client, make_user, monkeypatch):
+    login(client, make_user)
+    monkeypatch.setattr(chat_module.httpx, "post", fake_post([hit(1)], ""))
+    monkeypatch.setattr(chat_module.httpx, "stream", lambda *a, **k: FakeStream(ollama_lines("TIDAK_", "DITEMUKAN")))
+    events = parse_sse(client.post("/api/chat/stream", json={"question": "resep rendang?"}).text)
+    assert [e[0] for e in events] == ["done"]
+    assert events[0][1]["escalate"] is True
+
+
+def test_chat_stream_low_score_escalates_without_llm(client, make_user, monkeypatch):
+    login(client, make_user)
+    monkeypatch.setattr(chat_module.httpx, "post", fake_post([hit(1, score=0.5)], ""))
+
+    def no_llm(*a, **k):
+        raise AssertionError("LLM tidak boleh dipanggil")
+
+    monkeypatch.setattr(chat_module.httpx, "stream", no_llm)
+    events = parse_sse(client.post("/api/chat/stream", json={"question": "cuaca besok?"}).text)
+    assert len(events) == 1 and events[0][0] == "done" and events[0][1]["escalate"] is True
 
 
 def test_chat_503_when_retrieval_down(client, make_user, monkeypatch):

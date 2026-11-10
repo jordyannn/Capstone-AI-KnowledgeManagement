@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5:7b"
     ollama_num_ctx: int = 8192
     ollama_timeout_seconds: float = 180.0
+    # Model tetap di memori GPU selama ini setelah dipakai terakhir. Tanpa ini Ollama melepasnya
+    # setelah 5 menit dan pertanyaan berikutnya menunggu +-2 menit untuk memuat ulang.
+    ollama_keep_alive: str = "30m"
     chat_top_k: int = 6
     chat_min_score: float = 0.80
 

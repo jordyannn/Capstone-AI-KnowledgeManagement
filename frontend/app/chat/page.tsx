@@ -7,7 +7,7 @@ import { fetchMe, logout, User } from "@/lib/auth";
 
 type Source = { number: number; title: string; page: number; url: string; score: number; snippet: string };
 type Reply = { answer: string; sources: Source[]; escalate: boolean; reason?: string | null };
-type Message = { role: "user" | "assistant"; text: string; reply?: Reply; ms?: number };
+type Message = { role: "user" | "assistant"; text: string; reply?: Reply; ms?: number; firstMs?: number };
 
 const EXAMPLES = [
   "Apa syarat mendaftar seminar proposal?",
@@ -33,25 +33,55 @@ export default function ChatPage() {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
 
+  // Ubah pesan asisten terakhir (yang sedang ditulis).
+  function updateLast(change: (m: Message) => Message) {
+    setMessages((all) => [...all.slice(0, -1), change(all[all.length - 1])]);
+  }
+
   async function ask(question: string) {
     if (!question.trim() || busy) return;
-    setMessages((m) => [...m, { role: "user", text: question }]);
+    setMessages((m) => [...m, { role: "user", text: question }, { role: "assistant", text: "" }]);
     setInput("");
     setBusy(true);
     const started = performance.now();
     try {
-      const res = await fetch("/api/chat", {
+      // Server-Sent Events lewat fetch (EventSource tidak mendukung POST).
+      const res = await fetch("/api/chat/stream", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
       });
       if (res.status === 401) return router.replace("/login");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? "Terjadi kesalahan.");
-      setMessages((m) => [...m, { role: "assistant", text: data.answer, reply: data, ms: performance.now() - started }]);
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail ?? "Terjadi kesalahan.");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let cut;
+        while ((cut = buffer.indexOf("\n\n")) >= 0) {
+          const block = buffer.slice(0, cut);
+          buffer = buffer.slice(cut + 2);
+          const event = /^event: (.*)$/m.exec(block)?.[1];
+          const data = JSON.parse(/^data: (.*)$/m.exec(block)?.[1] ?? "{}");
+          if (event === "token") {
+            updateLast((m) => ({ ...m, text: m.text + data.text, firstMs: m.firstMs ?? performance.now() - started }));
+          } else if (event === "done") {
+            // Teks final dari server: sama dengan yang di-stream, atau pesan eskalasi.
+            updateLast((m) => ({ ...m, text: data.answer, reply: data, ms: performance.now() - started }));
+          } else if (event === "error") {
+            throw new Error(data.detail ?? "Terjadi kesalahan.");
+          }
+        }
+      }
     } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", text: (e as Error).message }]);
+      updateLast((m) => ({ ...m, text: (e as Error).message }));
     } finally {
       setBusy(false);
     }
@@ -107,7 +137,7 @@ export default function ChatPage() {
               ))}
             </div>
           )}
-          {messages.map((m, i) => (
+          {messages.filter((m) => m.role === "user" || m.text).map((m, i) => (
             <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
               <div className={`max-w-2xl rounded-lg px-4 py-3 text-sm ${m.role === "user" ? "bg-red-600 text-white" : "border border-gray-200 bg-white"}`}>
                 <p className="whitespace-pre-wrap">{m.text}</p>
@@ -128,11 +158,15 @@ export default function ChatPage() {
                     Hubungi Admin (segera hadir)
                   </button>
                 )}
-                {m.ms !== undefined && <p className="mt-2 text-[10px] text-gray-400">{(m.ms / 1000).toFixed(1)} detik</p>}
+                {m.ms !== undefined && (
+                  <p className="mt-2 text-[10px] text-gray-400">
+                    {m.firstMs !== undefined && `mulai ${(m.firstMs / 1000).toFixed(1)} detik · `}selesai {(m.ms / 1000).toFixed(1)} detik
+                  </p>
+                )}
               </div>
             </div>
           ))}
-          {busy && <p className="text-sm text-gray-500">Asisten sedang mencari jawaban...</p>}
+          {busy && !messages[messages.length - 1]?.text && <p className="text-sm text-gray-500">Asisten sedang mencari jawaban...</p>}
           <div ref={bottom} />
         </div>
 

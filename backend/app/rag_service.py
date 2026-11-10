@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from app.core.config import get_settings
 from app.ingest.embedding import SentenceTransformerEmbedder
 from app.ingest.vectorstore import get_collection
-from app.retrieval.hybrid import BM25Index, fuse
+from app.retrieval.hybrid import BM25Index, fuse, is_toc
 from app.retrieval.search import search
 
 app = FastAPI(title="KMS retrieval service")
@@ -65,7 +65,7 @@ def do_search(body: SearchRequest) -> dict:
     bm25 = _bm25()
     vector_hits = [
         h for h in search(body.query, embedder, collection, k=pool, role=body.role)
-        if h.document_id not in bm25.excluded_documents
+        if h.document_id not in bm25.excluded_documents and not is_toc(h.text)
     ]
     # Catatan: BM25 belum memfilter peran. Aman selama semua dokumen "publik" (scope mahasiswa).
     keyword_hits = bm25.search(body.query, k=pool)

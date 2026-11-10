@@ -1,4 +1,4 @@
-"""Hybrid retrieval: vektor (e5) + BM25 kata kunci, digabung dengan Reciprocal Rank Fusion (RRF).
+"""Hybrid retrieval: vektor (e5) + BM25 kata kunci, digabung berselang-seling (lihat `fuse`).
 
 Alasan: pada korpus berbahasa Indonesia, skor e5-small terkompresi (0,82–0,88) dan kalah untuk
 pertanyaan yang bergantung pada istilah spesifik ("TAK", "sempro", "BPP"). Eksperimen Retrieval
@@ -25,8 +25,40 @@ _STOP = set(
 EXCLUDED_CATEGORIES = {"pmb"}
 
 
+_SUFFIXES = ("nya", "kan", "lah", "kah", "an")
+_PREFIXES = ("meng", "meny", "mem", "men", "me", "peng", "peny", "pem", "pen", "per", "pe", "ber", "ter", "di", "ke")
+
+
+def stem(token: str) -> str:
+    """Stemmer ringan bahasa Indonesia, hanya untuk BM25 (query dan dokumen memakai aturan yang sama).
+
+    Cukup agar "mendaftar"/"pendaftaran" -> "daftar", "prasyarat"/"persyaratan" -> "syarat",
+    "pembayaran" -> "bayar". Tidak harus benar secara linguistik, yang penting konsisten."""
+    t = token
+    if t.isdigit() or len(t) < 5:
+        return t
+    for suf in _SUFFIXES:
+        if t.endswith(suf) and len(t) - len(suf) >= 4:
+            t = t[: -len(suf)]
+            break
+    if t.startswith("pra") and len(t) - 3 >= 5:
+        return t[3:]
+    for pre in _PREFIXES:
+        if t.startswith(pre) and len(t) - len(pre) >= 3:
+            return t[len(pre):]
+    return t
+
+
 def tokenize(text: str) -> list[str]:
-    return [t for t in _TOKEN.findall(text.lower()) if t not in _STOP and len(t) > 1]
+    return [stem(t) for t in _TOKEN.findall(text.lower()) if t not in _STOP and len(t) > 1]
+
+
+_DOTS = re.compile(r"\.{5,}")
+
+
+def is_toc(text: str) -> bool:
+    """Potongan daftar isi ("Pasal 12 ....... 11") cocok dengan banyak kata kunci tapi tidak berisi jawaban."""
+    return len(_DOTS.findall(text)) >= 3
 
 
 @dataclass
@@ -51,6 +83,8 @@ class BM25Index:
         for text, meta in zip(data["documents"], data["metadatas"]):
             if meta.get("category") in EXCLUDED_CATEGORIES:
                 index.excluded_documents.add(meta.get("document_id", ""))
+                continue
+            if is_toc(text):
                 continue
             hit = Hit(
                 score=0.0,

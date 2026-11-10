@@ -1,0 +1,213 @@
+{
+  "summary": {
+    "label": "retrieval-stem",
+    "n": 34,
+    "retrieval_n": 30,
+    "top1": 14,
+    "top3": 27,
+    "top6": 28,
+    "mrr": 0.678
+  },
+  "rows": [
+    {
+      "id": "tak-01",
+      "topic": "TAK",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "akd-01",
+      "topic": "beban studi",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "akd-02",
+      "topic": "beban studi",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "akd-03",
+      "topic": "masa studi",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "akd-04",
+      "topic": "SKS",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "cuti-01",
+      "topic": "cuti",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "cuti-02",
+      "topic": "cuti",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "kal-01",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "kal-02",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "kal-03",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "kal-04",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "kal-05",
+      "topic": "kalender",
+      "expect": "answer",
+      "rank": 6
+    },
+    {
+      "id": "ta-01",
+      "topic": "sidang TA",
+      "expect": "answer",
+      "rank": null
+    },
+    {
+      "id": "ta-02",
+      "topic": "TA",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "ta-03",
+      "topic": "TA",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "ta-04",
+      "topic": "yudisium",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "ta-05",
+      "topic": "SK TA",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "ta-06",
+      "topic": "format TA",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "kp-01",
+      "topic": "KPPM",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "kp-02",
+      "topic": "KPPM",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "kp-03",
+      "topic": "KPPM",
+      "expect": "answer",
+      "rank": null
+    },
+    {
+      "id": "mbkm-01",
+      "topic": "MBKM",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "ai-01",
+      "topic": "AI",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "ai-02",
+      "topic": "AI",
+      "expect": "answer",
+      "rank": 3
+    },
+    {
+      "id": "kur-01",
+      "topic": "kurikulum",
+      "expect": "answer",
+      "rank": 2
+    },
+    {
+      "id": "web-01",
+      "topic": "kontak",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "web-02",
+      "topic": "komplain",
+      "expect": "answer",
+      "rank": 1
+    },
+    {
+      "id": "web-03",
+      "topic": "akreditasi",
+      "expect": "answer",
+      "rank": 3
+    },
+    {
+      "id": "bpp-01",
+      "topic": "BPP",
+      "expect": "answer_or_escalate",
+      "rank": 2
+    },
+    {
+      "id": "sempro-01",
+      "topic": "sempro",
+      "expect": "answer_or_escalate",
+      "rank": 1
+    },
+    {
+      "id": "out-01",
+      "topic": "di luar cakupan",
+      "expect": "escalate"
+    },
+    {
+      "id": "out-02",
+      "topic": "di luar cakupan",
+      "expect": "escalate"
+    },
+    {
+      "id": "out-03",
+      "topic": "data pribadi",
+      "expect": "escalate"
+    },
+    {
+      "id": "out-04",
+      "topic": "di luar cakupan",
+      "expect": "escalate"
+    }
+  ]
+}
