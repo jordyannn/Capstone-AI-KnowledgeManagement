@@ -1,37 +1,95 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { fetchMe, logout, User } from "@/lib/auth";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import AppShell from "@/components/AppShell";
+import { fetchMe, User } from "@/lib/auth";
 
 type Source = { number: number; title: string; page: number; url: string; score: number; snippet: string };
-type Reply = { answer: string; sources: Source[]; escalate: boolean; reason?: string | null };
+type Reply = {
+  answer: string;
+  sources: Source[];
+  escalate: boolean;
+  reason?: string | null;
+  conversation_id?: string;
+  message_id?: string;
+};
 type Message = { role: "user" | "assistant"; text: string; reply?: Reply; ms?: number; firstMs?: number };
+type ConversationSummary = { id: string; title: string; updated_at: string };
+type StoredMessage = {
+  id: string;
+  sender: "mahasiswa" | "asisten";
+  content: string;
+  sources: Source[];
+  escalated: boolean;
+  reason: string | null;
+};
 
 const EXAMPLES = [
-  "Apa syarat mendaftar seminar proposal?",
+  "Apa syarat mendaftar sidang tugas akhir?",
   "Berapa poin TAK minimal untuk lulus S1?",
-  "Bagaimana alur penundaan pembayaran BPP?",
+  "Bagaimana cara mengajukan cuti akademik?",
 ];
+
+function fromStored(m: StoredMessage): Message {
+  if (m.sender === "mahasiswa") return { role: "user", text: m.content };
+  return {
+    role: "assistant",
+    text: m.content,
+    reply: { answer: m.content, sources: m.sources, escalate: m.escalated, reason: m.reason, message_id: m.id },
+  };
+}
 
 export default function ChatPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [history, setHistory] = useState<ConversationSummary[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
 
+  const loadHistory = useCallback(async () => {
+    const res = await fetch("/api/chat/conversations", { credentials: "same-origin" });
+    if (res.ok) setHistory(await res.json());
+  }, []);
+
   useEffect(() => {
     fetchMe().then((me) => (me ? setUser(me) : router.replace("/login")));
-  }, [router]);
+    loadHistory();
+  }, [router, loadHistory]);
 
   // Pakai blok: di Chromium terbaru scrollIntoView mengembalikan Promise, dan nilai kembalian
   // useEffect yang bukan fungsi membuat React gagal saat cleanup ("i is not a function").
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
+
+  async function openConversation(id: string) {
+    if (busy) return;
+    const res = await fetch(`/api/chat/conversations/${id}`, { credentials: "same-origin" });
+    if (res.status === 401) return router.replace("/login");
+    if (!res.ok) return;
+    const data = await res.json();
+    setConversationId(id);
+    setMessages((data.messages as StoredMessage[]).map(fromStored));
+  }
+
+  function newConversation() {
+    if (busy) return;
+    setConversationId(null);
+    setMessages([]);
+  }
+
+  async function deleteConversation(id: string) {
+    if (busy || !confirm("Hapus percakapan ini dari riwayat?")) return;
+    const res = await fetch(`/api/chat/conversations/${id}`, { method: "DELETE", credentials: "same-origin" });
+    if (res.ok || res.status === 404) {
+      if (id === conversationId) newConversation();
+      loadHistory();
+    }
+  }
 
   // Ubah pesan asisten terakhir (yang sedang ditulis).
   function updateLast(change: (m: Message) => Message) {
@@ -50,7 +108,7 @@ export default function ChatPage() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, conversation_id: conversationId }),
       });
       if (res.status === 401) return router.replace("/login");
       if (!res.ok || !res.body) {
@@ -75,6 +133,7 @@ export default function ChatPage() {
           } else if (event === "done") {
             // Teks final dari server: sama dengan yang di-stream, atau pesan eskalasi.
             updateLast((m) => ({ ...m, text: data.answer, reply: data, ms: performance.now() - started }));
+            if (data.conversation_id) setConversationId(data.conversation_id);
           } else if (event === "error") {
             throw new Error(data.detail ?? "Terjadi kesalahan.");
           }
@@ -84,6 +143,7 @@ export default function ChatPage() {
       updateLast((m) => ({ ...m, text: (e as Error).message }));
     } finally {
       setBusy(false);
+      loadHistory();
     }
   }
 
@@ -94,31 +154,42 @@ export default function ChatPage() {
 
   if (!user) return <p className="p-8 text-sm text-gray-500">Memuat...</p>;
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-64 flex-col justify-between border-r border-gray-200 bg-white p-4 md:flex">
-        <div className="space-y-4">
-          <div className="text-sm font-semibold">Knowledge Management</div>
-          <nav className="space-y-1 text-sm">
-            <Link href="/" className="block rounded px-2 py-1 hover:bg-gray-100">Beranda</Link>
-            <Link href="/chat" className="block rounded bg-gray-100 px-2 py-1 font-medium">Chat Asisten</Link>
-          </nav>
-        </div>
-        <div className="space-y-3">
-          <div className="text-sm">
-            <div className="font-medium">{user.full_name}</div>
-            <div className="text-gray-500">{user.role.name}</div>
-          </div>
-          <button
-            onClick={async () => { await logout(); router.replace("/login"); }}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-100"
-          >
-            Keluar
-          </button>
-        </div>
-      </aside>
+  const historyPanel = (close: () => void) => (
+    <div className="space-y-2 border-t border-gray-100 pt-4">
+      <button
+        onClick={() => { newConversation(); close(); }}
+        className="w-full rounded border border-gray-300 px-3 py-1.5 text-left text-sm hover:bg-gray-100"
+      >
+        + Percakapan baru
+      </button>
+      <p className="px-2 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Riwayat</p>
+      {history.length === 0 && <p className="px-2 text-xs text-gray-400">Belum ada percakapan.</p>}
+      <ul className="space-y-0.5">
+        {history.map((c) => (
+          <li key={c.id} className="group flex items-center gap-1">
+            <button
+              onClick={() => { openConversation(c.id); close(); }}
+              title={c.title}
+              className={`min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-sm ${c.id === conversationId ? "bg-gray-100 font-medium" : "hover:bg-gray-100"}`}
+            >
+              {c.title}
+            </button>
+            <button
+              onClick={() => deleteConversation(c.id)}
+              aria-label={`Hapus percakapan ${c.title}`}
+              className="shrink-0 rounded px-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-red-600 md:opacity-0 md:group-hover:opacity-100"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
-      <main className="flex flex-1 flex-col">
+  return (
+    <AppShell user={user} active="chat" sidebarExtra={historyPanel}>
+      <main className="flex min-h-0 flex-1 flex-col">
         <header className="border-b border-gray-200 bg-white px-4 py-3 md:px-8">
           <h1 className="text-lg font-semibold">Chat Asisten</h1>
           <p className="text-xs text-gray-500">
@@ -126,12 +197,12 @@ export default function ChatPage() {
           </p>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6 md:px-8">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-6 md:px-8">
           {messages.length === 0 && (
             <div className="space-y-2">
               <p className="text-sm text-gray-500">Contoh pertanyaan:</p>
               {EXAMPLES.map((q) => (
-                <button key={q} onClick={() => ask(q)} className="block rounded border border-gray-200 bg-white px-3 py-2 text-left text-sm hover:bg-gray-50">
+                <button key={q} onClick={() => ask(q)} className="block w-full rounded border border-gray-200 bg-white px-3 py-2 text-left text-sm hover:bg-gray-50 sm:w-auto">
                   {q}
                 </button>
               ))}
@@ -139,7 +210,7 @@ export default function ChatPage() {
           )}
           {messages.filter((m) => m.role === "user" || m.text).map((m, i) => (
             <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-              <div className={`max-w-2xl rounded-lg px-4 py-3 text-sm ${m.role === "user" ? "bg-red-600 text-white" : "border border-gray-200 bg-white"}`}>
+              <div className={`max-w-[90%] break-words rounded-lg px-4 py-3 text-sm md:max-w-2xl ${m.role === "user" ? "bg-red-600 text-white" : "border border-gray-200 bg-white"}`}>
                 <p className="whitespace-pre-wrap">{m.text}</p>
                 {m.reply && m.reply.sources.length > 0 && (
                   <div className="mt-3 border-t border-gray-100 pt-2">
@@ -175,14 +246,14 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Tulis pertanyaan tentang akademik atau administrasi..."
-            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
             maxLength={1000}
           />
-          <button disabled={busy} className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button disabled={busy} className="shrink-0 rounded bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             Kirim
           </button>
         </form>
       </main>
-    </div>
+    </AppShell>
   );
 }
