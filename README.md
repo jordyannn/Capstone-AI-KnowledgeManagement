@@ -2,16 +2,23 @@
 
 Capstone Kelompok 31, Prodi S1 Sistem Informasi, Telkom University Jakarta.
 
-Status saat ini: login/logout (**SCRUM-28**) dan pipeline data pertama: ETL korpus ke Postgres
-(**SCRUM-36**) serta chunking, embedding, dan indexing ke ChromaDB (**SCRUM-38**).
-Belum ada: chat/RAG, unggah dokumen, Ollama.
+Status saat ini:
+- login/logout (**SCRUM-28**) dan login SSO Microsoft (**SCRUM-73**);
+- pipeline data: ETL korpus ke Postgres (**SCRUM-36**) serta chunking, embedding, dan indexing ke
+  ChromaDB (**SCRUM-38**);
+- chat asisten berbasis RAG dengan sitasi dokumen + halaman, jawaban streaming, eskalasi bila
+  dokumen tidak memuat jawaban, dan riwayat percakapan per mahasiswa.
+
+Belum ada: livechat/tiket, unggah dokumen lewat UI, halaman admin, PII masking, log audit.
 
 ## Arsitektur (yang sudah ada)
 
 ```
 Browser -> Nginx (:HTTP_PORT)
              |-- /      -> Frontend (Next.js)
-             '-- /api/  -> Backend (FastAPI) -> PostgreSQL
+             '-- /api/  -> Backend (FastAPI) -> PostgreSQL (pengguna, dokumen, riwayat chat)
+                              |-- /search --> RAG service (embedding e5 + BM25) -> ChromaDB
+                              '-- /api/chat -> Ollama di host (qwen2.5:7b, GPU)
 
 Ingest Worker --baca dokumen "pending"--> PostgreSQL
               --tulis vektor------------> ChromaDB
@@ -22,6 +29,8 @@ Ingest Worker --baca dokumen "pending"--> PostgreSQL
 - **Git**
 - **Docker Desktop**, dan harus dalam keadaan **berjalan** (ikon paus di system tray,
   status *Engine running*) sebelum menjalankan perintah `docker compose` apa pun.
+- **Ollama** di komputer host (bukan di container), dengan model `qwen2.5:7b`. Lihat bagian
+  [Ollama (model bahasa)](#ollama-model-bahasa).
 
 Python dan Node.js di komputer **tidak diperlukan** untuk menjalankan aplikasi maupun test.
 
@@ -92,6 +101,56 @@ Selama masalahnya di infrastruktur, dokumen sengaja dibiarkan `pending`, bukan `
 
 **Port 8080 sudah dipakai aplikasi lain**
 Ubah `HTTP_PORT` di `.env` (misalnya `8081`), lalu `docker compose up -d`.
+
+## Ollama (model bahasa)
+
+Chat memakai Ollama yang berjalan langsung di Windows agar bisa memakai GPU. Container backend
+menghubunginya lewat `http://host.docker.internal:11434`.
+
+```powershell
+ollama pull qwen2.5:7b
+```
+
+**Setelan wajib** (sekali per komputer). Tanpa ini, di GPU 6 GB model tidak muat dan jawaban jauh
+lebih lambat. Hasil pengukuran: median 20 detik -> 12,5 detik.
+
+```powershell
+setx OLLAMA_FLASH_ATTENTION 1
+setx OLLAMA_KV_CACHE_TYPE q8_0
+```
+
+Setelah itu tutup Ollama lewat ikon tray -> **Quit**, lalu buka lagi agar setelan terbaca. Untuk
+membatalkan: `setx OLLAMA_FLASH_ATTENTION 0` dan `setx OLLAMA_KV_CACHE_TYPE f16`, lalu restart Ollama.
+
+Setelan aplikasi terkait (`docker-compose.yml` / `.env`):
+
+| Variabel | Default | Keterangan |
+|---|---|---|
+| `OLLAMA_MODEL` | `qwen2.5:7b` | `qwen2.5:3b` 2x lebih cepat tetapi lebih sering salah menolak pertanyaan |
+| `CHAT_TOP_K` | `4` | Jumlah potongan dokumen yang dikirim ke model. Lebih sedikit = lebih cepat |
+
+Backend memuat model ke GPU saat start dan menahannya 30 menit setelah dipakai terakhir. Untuk
+melepas VRAM (misalnya mau main game): `ollama stop qwen2.5:7b`.
+
+**Kebutuhan VRAM:** qwen2.5:7b (Q4_K_M) butuh +-5,2 GB. Di GTX 1660 6 GB hanya 25 dari 29 layer yang
+masuk GPU karena Windows ikut memakai VRAM, sehingga waktu respons 7-22 detik. Untuk target <= 5 detik
+dibutuhkan GPU >= 8 GB. Saat demo, tutup aplikasi yang memakai GPU (browser dengan hardware
+acceleration, game, overlay).
+
+## Evaluasi chat
+
+Set uji 34 pertanyaan ada di `backend/eval/eval_set.jsonl`. Hasil tiap run disimpan di
+`backend/eval/results/`.
+
+```powershell
+docker compose cp backend/eval/. backend:/tmp/eval/
+docker compose exec -e EVAL_EMAIL=<email akun uji> -e EVAL_PASSWORD=<sandi> backend python /tmp/eval/run_eval.py --label nama-run
+docker compose cp backend:/tmp/eval-results/. backend/eval/results/
+```
+
+`--no-chat` hanya mengukur retrieval (cepat, tanpa LLM). `stream_latency.py` mengukur waktu sampai
+kata pertama tampil. Gunakan pertanyaan baru untuk mengukur waktu: pertanyaan yang sama dengan run
+sebelumnya terkena cache Ollama sehingga angkanya terlalu bagus.
 
 ## Pipeline data
 
