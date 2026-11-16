@@ -5,22 +5,32 @@ Dua endpoint dengan alur yang sama:
 - POST /api/chat/stream  : Server-Sent Events. Teks dikirim per potongan selagi model menulis,
                            lalu satu event "done" berisi ChatResponse lengkap (sumber, eskalasi).
 
-Belum ada: penyimpanan riwayat, klasifikasi niat lengkap, livechat, PII masking. Keputusan eskalasi:
-tidak ada potongan yang cukup mirip, atau model menyatakan konteks tidak memuat jawabannya.
+Setiap tanya-jawab disimpan sebagai riwayat (F-11): kirim `conversation_id` untuk melanjutkan
+percakapan, atau kosongkan untuk memulai percakapan baru. Riwayat dibaca lewat
+GET /api/chat/conversations dan GET /api/chat/conversations/{id}.
+
+Belum ada: klasifikasi niat lengkap, livechat, PII masking. Keputusan eskalasi: tidak ada potongan
+yang cukup mirip, atau model menyatakan konteks tidak memuat jawabannya.
 """
 
 import json
 import re
+import uuid
 from collections.abc import Iterator
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
-from app.models import User
+from app.core.db import get_db
+from app.models import Conversation, Message, User
+from app.models.chat import SENDER_ASSISTANT, SENDER_STUDENT
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -40,6 +50,7 @@ NOT_FOUND_ANSWER = "Maaf, dokumen yang tersedia tidak memuat jawaban untuk perta
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=2, max_length=1000)
+    conversation_id: uuid.UUID | None = None  # kosong = percakapan baru
 
 
 class Source(BaseModel):
@@ -56,6 +67,69 @@ class ChatResponse(BaseModel):
     sources: list[Source]
     escalate: bool
     reason: str | None = None
+    conversation_id: uuid.UUID | None = None
+    message_id: uuid.UUID | None = None
+
+
+class ConversationSummary(BaseModel):
+    id: uuid.UUID
+    title: str
+    updated_at: datetime
+
+
+class StoredMessage(BaseModel):
+    id: uuid.UUID
+    sender: str
+    content: str
+    sources: list[Source]
+    escalated: bool
+    reason: str | None
+    feedback: str | None
+    created_at: datetime
+
+
+class ConversationDetail(ConversationSummary):
+    messages: list[StoredMessage]
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _own_conversation(db: Session, user: User, conversation_id: uuid.UUID) -> Conversation:
+    conv = db.get(Conversation, conversation_id)
+    # 404 juga untuk percakapan milik orang lain: tidak membocorkan bahwa id itu ada (NFR isolasi data).
+    if conv is None or conv.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Percakapan tidak ditemukan.")
+    return conv
+
+
+def _open_conversation(db: Session, user: User, body: ChatRequest, question: str) -> Conversation:
+    """Ambil percakapan lama atau buat yang baru, lalu simpan pertanyaan mahasiswa."""
+    if body.conversation_id is not None:
+        conv = _own_conversation(db, user, body.conversation_id)
+    else:
+        conv = Conversation(user_id=user.id, title=question[:80])
+        db.add(conv)
+    conv.updated_at = _now()
+    db.add(Message(conversation=conv, sender=SENDER_STUDENT, content=question, sources=[]))
+    db.commit()
+    return conv
+
+
+def _save_answer(db: Session, conv: Conversation, resp: ChatResponse) -> ChatResponse:
+    msg = Message(
+        conversation=conv,
+        sender=SENDER_ASSISTANT,
+        content=resp.answer,
+        sources=[s.model_dump() for s in resp.sources],
+        escalated=resp.escalate,
+        reason=resp.reason,
+    )
+    db.add(msg)
+    conv.updated_at = _now()
+    db.commit()
+    return resp.model_copy(update={"conversation_id": conv.id, "message_id": msg.id})
 
 
 def _context(hits: list[dict]) -> str:
@@ -124,11 +198,12 @@ def _finalize(answer: str, hits: list[dict]) -> ChatResponse:
 
 
 @router.post("", response_model=ChatResponse)
-def chat(body: ChatRequest, user: User = Depends(get_current_user)) -> ChatResponse:
+def chat(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ChatResponse:
     question = body.question.strip()
+    conv = _open_conversation(db, user, body, question)
     hits = _retrieve(question)
     if (early := _no_context(hits)) is not None:
-        return early
+        return _save_answer(db, conv, early)
     settings = get_settings()
     try:
         r = httpx.post(f"{settings.ollama_url}/api/chat", json=_ollama_payload(question, hits, stream=False), timeout=settings.ollama_timeout_seconds)
@@ -136,7 +211,7 @@ def chat(body: ChatRequest, user: User = Depends(get_current_user)) -> ChatRespo
         answer = r.json()["message"]["content"]
     except (httpx.HTTPError, KeyError) as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model bahasa tidak dapat dihubungi.") from exc
-    return _finalize(answer, hits)
+    return _save_answer(db, conv, _finalize(answer, hits))
 
 
 def _sse(event: str, data: dict) -> str:
@@ -147,7 +222,8 @@ def _sse(event: str, data: dict) -> str:
 _HOLD = len(NOT_FOUND) + 2
 
 
-def _stream_answer(question: str, hits: list[dict]) -> Iterator[str]:
+def _stream_answer(question: str, hits: list[dict]) -> Iterator[str | ChatResponse]:
+    """Menghasilkan event SSE "token"/"error" (str), lalu ChatResponse final sebagai item terakhir."""
     settings = get_settings()
     answer = ""
     released = False
@@ -176,23 +252,53 @@ def _stream_answer(question: str, hits: list[dict]) -> Iterator[str]:
         return
     if not released and not answer.strip().upper().startswith("TIDAK"):
         yield _sse("token", {"text": answer})  # jawaban sangat pendek
-    yield _sse("done", _finalize(answer, hits).model_dump())
+    yield _finalize(answer, hits)
 
 
 @router.post("/stream")
-def chat_stream(body: ChatRequest, user: User = Depends(get_current_user)) -> StreamingResponse:
+def chat_stream(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
     question = body.question.strip()
+    conv = _open_conversation(db, user, body, question)
     hits = _retrieve(question)  # galat retrieval tetap jadi HTTP 503 biasa, sebelum stream dimulai
     early = _no_context(hits)
 
+    # Session `db` tetap dipakai di generator setelah dependency selesai: Session SQLAlchemy yang
+    # sudah di-close dibuka ulang otomatis saat dipakai lagi.
     def events() -> Iterator[str]:
         if early is not None:
-            yield _sse("done", early.model_dump())
+            yield _sse("done", _save_answer(db, conv, early).model_dump(mode="json"))
             return
-        yield from _stream_answer(question, hits)
+        for item in _stream_answer(question, hits):
+            if isinstance(item, ChatResponse):
+                yield _sse("done", _save_answer(db, conv, item).model_dump(mode="json"))
+            else:
+                yield item
 
     # X-Accel-Buffering: Nginx meneruskan tiap event langsung, tidak ditahan di buffer.
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/conversations", response_model=list[ConversationSummary])
+def list_conversations(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Conversation]:
+    rows = db.scalars(
+        select(Conversation).where(Conversation.user_id == user.id).order_by(Conversation.updated_at.desc()).limit(50)
+    )
+    return list(rows)
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+def get_conversation(
+    conversation_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> Conversation:
+    return _own_conversation(db, user, conversation_id)
+
+
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_conversation(
+    conversation_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    db.delete(_own_conversation(db, user, conversation_id))
+    db.commit()
 
 
 def warm_up_model() -> None:
