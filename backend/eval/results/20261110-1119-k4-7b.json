@@ -1,0 +1,35 @@
+{
+  "summary": {
+    "label": "k4-7b",
+    "n": 1,
+    "retrieval_n": 1,
+    "top1": 0,
+    "top3": 1,
+    "top6": 1,
+    "mrr": 0.5,
+    "pass": 1,
+    "answer_pass": 1,
+    "answer_n": 1,
+    "false_escalate": 0,
+    "missed_escalate": 0,
+    "seconds_median": 28.0,
+    "seconds_max": 28.0
+  },
+  "rows": [
+    {
+      "id": "tak-01",
+      "topic": "TAK",
+      "expect": "answer",
+      "rank": 2,
+      "seconds": 28.0,
+      "escalate": false,
+      "answer": "60 poin [2]",
+      "cited": [
+        "Nota Dinas Pembaruan Pedoman TAK 2026 hal. 1"
+      ],
+      "keywords_ok": true,
+      "citation_ok": true,
+      "pass": true
+    }
+  ]
+}

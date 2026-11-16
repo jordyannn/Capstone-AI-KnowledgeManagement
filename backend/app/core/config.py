@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # Model tetap di memori GPU selama ini setelah dipakai terakhir. Tanpa ini Ollama melepasnya
     # setelah 5 menit dan pertanyaan berikutnya menunggu +-2 menit untuk memuat ulang.
     ollama_keep_alive: str = "30m"
-    chat_top_k: int = 6
+    chat_top_k: int = 4  # 4 potongan: akurasi sama dengan 6, waktu baca model turun (eval 10 Nov)
     chat_min_score: float = 0.80
 
     # Akun admin awal. Dibuat oleh seed hanya jika kedua nilai terisi dan belum ada user.
