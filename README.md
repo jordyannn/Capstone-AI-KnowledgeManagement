@@ -125,7 +125,14 @@ docker compose logs -f worker      # tunggu sampai semua dokumen ter-index, lalu
 
 Indexing pertama mengunduh model embedding dan butuh beberapa menit. Cek progres:
 `docker compose exec postgres psql -U kms -d kms -c "select status, count(*) from documents group by status;"`.
-Selesai bila semua `indexed`.
+Selesai bila semua `indexed`. Setelah itu muat ulang index kata kunci (BM25) di layanan retrieval,
+karena index itu dibangun sekali dan tidak otomatis ikut dokumen baru:
+
+```powershell
+docker compose restart rag
+```
+
+Pesan `fontTools is required ...` saat `load_pdfs` hanya peringatan pypdf soal font Calibri dan bisa diabaikan.
 
 **6. Buka `http://localhost:8080`** (bukan `127.0.0.1`), lalu klik **"Masuk dengan akun Telkom
 University"**. Akun `@student.telkomuniversity.ac.id` otomatis dibuat sebagai Mahasiswa. Untuk
