@@ -7,16 +7,24 @@ import { logout, User } from "@/lib/auth";
 
 type Props = {
   user: User;
-  active: "home" | "chat";
+  active: "home" | "chat" | "bantuan" | "admin";
   /** Isi tambahan di bawah menu, mis. daftar riwayat percakapan. Menerima fungsi penutup drawer ponsel. */
   sidebarExtra?: (close: () => void) => ReactNode;
   children: ReactNode;
 };
 
-const NAV = [
-  { key: "home", href: "/", label: "Beranda" },
-  { key: "chat", href: "/chat", label: "Chat Asisten" },
-] as const;
+const STAFF_ROLES = ["admin", "staf"];
+export const isStaff = (user: User) => STAFF_ROLES.includes(user.role.code);
+
+function navFor(user: User) {
+  const nav = [
+    { key: "home", href: "/", label: "Beranda" },
+    { key: "chat", href: "/chat", label: "Chat Asisten" },
+    { key: "bantuan", href: "/bantuan", label: "Bantuan Staf" },
+  ];
+  // Staf melayani antrean; menu "Bantuan Staf" (permintaan milik sendiri) tidak relevan bagi mereka.
+  return isStaff(user) ? [...nav.slice(0, 2), { key: "admin", href: "/admin", label: "Antrean Bantuan" }] : nav;
+}
 
 /**
  * Kerangka halaman: sidebar tetap di layar lebar (md ke atas), dan bilah atas + menu geser di ponsel
@@ -32,7 +40,7 @@ export default function AppShell({ user, active, sidebarExtra, children }: Props
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
         <div className="text-sm font-semibold">Knowledge Management</div>
         <nav className="space-y-1 text-sm">
-          {NAV.map((n) => (
+          {navFor(user).map((n) => (
             <Link
               key={n.key}
               href={n.href}

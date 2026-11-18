@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import EscalationPanel from "@/components/EscalationPanel";
 import { fetchMe, User } from "@/lib/auth";
 
 type Source = { number: number; title: string; page: number; url: string; score: number; snippet: string };
@@ -48,7 +49,14 @@ export default function ChatPage() {
   const [history, setHistory] = useState<ConversationSummary[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // Indeks pesan asisten yang sedang dibuka form eskalasinya (F-10).
+  const [escalating, setEscalating] = useState<number | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+
+  function questionBefore(index: number): string {
+    for (let j = index - 1; j >= 0; j--) if (messages[j].role === "user") return messages[j].text;
+    return "";
+  }
 
   const loadHistory = useCallback(async () => {
     const res = await fetch("/api/chat/conversations", { credentials: "same-origin" });
@@ -73,12 +81,14 @@ export default function ChatPage() {
     if (!res.ok) return;
     const data = await res.json();
     setConversationId(id);
+    setEscalating(null);
     setMessages((data.messages as StoredMessage[]).map(fromStored));
   }
 
   function newConversation() {
     if (busy) return;
     setConversationId(null);
+    setEscalating(null);
     setMessages([]);
   }
 
@@ -208,7 +218,7 @@ export default function ChatPage() {
               ))}
             </div>
           )}
-          {messages.filter((m) => m.role === "user" || m.text).map((m, i) => (
+          {messages.map((m, i) => (m.role === "assistant" && !m.text) ? null : (
             <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
               <div className={`max-w-[90%] break-words rounded-lg px-4 py-3 text-sm md:max-w-2xl ${m.role === "user" ? "bg-red-600 text-white" : "border border-gray-200 bg-white"}`}>
                 <p className="whitespace-pre-wrap">{m.text}</p>
@@ -224,10 +234,19 @@ export default function ChatPage() {
                     </ul>
                   </div>
                 )}
-                {m.reply?.escalate && (
-                  <button disabled className="mt-3 rounded border border-gray-300 px-3 py-1 text-xs text-gray-500" title="Livechat dikembangkan pada sprint berikutnya">
-                    Hubungi Admin (segera hadir)
-                  </button>
+                {m.reply?.escalate && !busy && (
+                  escalating === i ? (
+                    <EscalationPanel
+                      question={questionBefore(i)}
+                      answer={m.text}
+                      conversationId={conversationId}
+                      onCancel={() => setEscalating(null)}
+                    />
+                  ) : (
+                    <button onClick={() => setEscalating(i)} className="mt-3 rounded border border-red-600 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50">
+                      Hubungi Admin
+                    </button>
+                  )
                 )}
                 {m.ms !== undefined && (
                   <p className="mt-2 text-[10px] text-gray-400">
