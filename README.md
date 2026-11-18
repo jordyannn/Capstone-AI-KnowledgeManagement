@@ -67,6 +67,77 @@ Build pertama memakan beberapa menit karena mengunduh image. Setelah selesai, bu
 > dan Mahasiswa sudah ada di tabel `roles`, tetapi belum ada penggunanya. Pembuatan pengguna
 > lewat UI belum dikerjakan.
 
+## Setup untuk anggota tim (laptop sendiri)
+
+Langkah lengkap supaya anggota tim bisa menjalankan aplikasi di laptopnya sendiri, termasuk login
+SSO dengan akun Telkom University. Aplikasi, database, dan dokumen berjalan di laptop masing-masing,
+jadi akun, riwayat chat, dan tiket **tidak tersambung** dengan laptop anggota lain.
+
+**Minta dulu ke pemegang repo (lewat chat pribadi, jangan di grup besar atau GitHub):**
+- `SSO_CLIENT_ID` dan `SSO_CLIENT_SECRET`
+- folder `data/` (±21 MB: `data/seed/corpus_clean.jsonl` + PDF di `data/dokumen/`). Folder ini tidak di-commit.
+
+**1. Install:** Git, Docker Desktop (jalankan sampai *Engine running*), dan Ollama.
+
+**2. Siapkan model bahasa** (sekali, ±4,7 GB). Lalu atur setelan GPU dan restart Ollama
+(tray → Quit, buka lagi). Penjelasannya ada di bagian [Ollama](#ollama-model-bahasa).
+
+```powershell
+ollama pull qwen2.5:7b
+setx OLLAMA_FLASH_ATTENTION 1
+setx OLLAMA_KV_CACHE_TYPE q8_0
+```
+
+Tanpa GPU NVIDIA ≥ 6 GB, jawaban bisa lebih dari 1 menit. Alternatif yang lebih ringan:
+`ollama pull qwen2.5:3b`, lalu tambahkan `OLLAMA_MODEL=qwen2.5:3b` di `.env`. Model ini ±2x lebih
+cepat, tetapi lebih sering salah menolak pertanyaan.
+
+**3. Clone dan isi `.env`:**
+
+```powershell
+git clone https://github.com/jordyannn/Capstone-AI-KnowledgeManagement.git
+cd Capstone-AI-KnowledgeManagement
+copy .env.example .env
+```
+
+Di `.env`: isi `POSTGRES_PASSWORD`, `SECRET_KEY`, `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` (bebas,
+milik sendiri), lalu aktifkan SSO:
+
+```
+SSO_ENABLED=true
+SSO_CLIENT_ID=<dari pemegang repo>
+SSO_CLIENT_SECRET=<dari pemegang repo>
+```
+
+Biarkan `HTTP_PORT=8080` dan `SSO_REDIRECT_URI` seperti bawaan. Redirect URI yang terdaftar di Azure
+adalah `http://localhost:8080/api/auth/sso/callback`, jadi port lain membuat SSO gagal.
+
+**4. Salin folder `data/`** ke root repo, sehingga ada `data/seed/corpus_clean.jsonl` dan `data/dokumen/*.pdf`.
+
+**5. Jalankan dan isi basis pengetahuan:**
+
+```powershell
+docker compose up -d --build
+docker compose exec backend python -m app.etl.load_corpus /data/seed/corpus_clean.jsonl
+docker compose exec worker python -m app.etl.load_pdfs /data/dokumen
+docker compose logs -f worker      # tunggu sampai semua dokumen ter-index, lalu Ctrl+C
+```
+
+Indexing pertama mengunduh model embedding dan butuh beberapa menit. Cek progres:
+`docker compose exec postgres psql -U kms -d kms -c "select status, count(*) from documents group by status;"`.
+Selesai bila semua `indexed`.
+
+**6. Buka `http://localhost:8080`** (bukan `127.0.0.1`), lalu klik **"Masuk dengan akun Telkom
+University"**. Akun `@student.telkomuniversity.ac.id` otomatis dibuat sebagai Mahasiswa. Untuk
+membuka halaman admin (Antrean Bantuan), login dengan `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`.
+
+**Kalau ada masalah:**
+- Tombol SSO tidak muncul: `SSO_ENABLED` belum `true`, atau backend belum dibuat ulang (`docker compose up -d`).
+- Backend tidak mau start setelah SSO diaktifkan: client ID/secret kosong (`docker compose logs backend`).
+- Chat selalu menjawab "dokumen tidak memuat jawaban": langkah 5 belum selesai, atau Ollama belum jalan.
+- Secret SSO bocor: pemegang repo membuat secret baru di Azure (Certificates & secrets), menghapus
+  yang lama, dan membagikan yang baru.
+
 ## Sehari-hari
 
 | Keperluan | Perintah |
