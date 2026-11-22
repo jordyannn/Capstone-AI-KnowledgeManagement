@@ -7,7 +7,7 @@ import { logout, User } from "@/lib/auth";
 
 type Props = {
   user: User;
-  active: "home" | "chat" | "bantuan" | "admin";
+  active: "home" | "chat" | "bantuan" | "admin" | "audit";
   /** Isi tambahan di bawah menu, mis. daftar riwayat percakapan. Menerima fungsi penutup drawer ponsel. */
   sidebarExtra?: (close: () => void) => ReactNode;
   children: ReactNode;
@@ -23,7 +23,9 @@ function navFor(user: User) {
     { key: "bantuan", href: "/bantuan", label: "Bantuan Staf" },
   ];
   // Staf melayani antrean; menu "Bantuan Staf" (permintaan milik sendiri) tidak relevan bagi mereka.
-  return isStaff(user) ? [...nav.slice(0, 2), { key: "admin", href: "/admin", label: "Antrean Bantuan" }] : nav;
+  return isStaff(user)
+    ? [...nav.slice(0, 2), { key: "admin", href: "/admin", label: "Antrean Bantuan" }, { key: "audit", href: "/admin/audit", label: "Log Audit" }]
+    : nav;
 }
 
 /**

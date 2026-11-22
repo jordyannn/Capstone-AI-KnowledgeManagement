@@ -27,7 +27,10 @@ from app.core.sso import (
     new_random,
     states_match,
 )
+from app.core import audit
 from app.models import Role, User
+from app.models.audit import LOGIN
+from app.models.support import STAFF_ROLES
 from app.models.user import AUTH_MICROSOFT
 
 log = logging.getLogger("sso")
@@ -167,6 +170,10 @@ def sso_callback(
         user = _resolve_and_commit(db, identity)
     except SsoError as failure:
         return _failure(failure)
+
+    if user.role.code in STAFF_ROLES:  # F-15: login admin/staf dicatat
+        audit.record(db, LOGIN, user, detail={"metode": "sso"})
+        db.commit()
 
     response = RedirectResponse("/", status_code=status.HTTP_302_FOUND)
     set_auth_cookie(response, user.id)  # cookie sesi yang sama dengan login lokal

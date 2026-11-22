@@ -2,7 +2,7 @@ import threading
 
 from fastapi import APIRouter, FastAPI
 
-from app.api import auth, chat, health, sso, support
+from app.api import audit, auth, chat, health, sso, stats, support
 
 app = FastAPI(title="AI Knowledge Management System", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -13,6 +13,8 @@ api.include_router(sso.router)
 api.include_router(chat.router)
 api.include_router(support.router)
 api.include_router(support.admin_router)
+api.include_router(audit.router)
+api.include_router(stats.router)
 app.include_router(api)
 
 

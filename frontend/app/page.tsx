@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import AppShell from "@/components/AppShell";
+import AppShell, { isStaff } from "@/components/AppShell";
+import StaffDashboard from "@/components/StaffDashboard";
 import { fetchMe, User } from "@/lib/auth";
 
 export default function HomePage() {
@@ -28,6 +29,7 @@ export default function HomePage() {
         <Link href="/chat" className="mt-6 inline-block rounded bg-red-600 px-4 py-2 text-sm font-medium text-white">
           Buka Chat Asisten
         </Link>
+        {isStaff(user) && <StaffDashboard />}
       </main>
     </AppShell>
   );

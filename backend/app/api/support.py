@@ -29,8 +29,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core import audit
 from app.core.db import get_db
 from app.models import Conversation, StaffPresence, SupportMessage, SupportRequest, User
+from app.models.audit import PRESENCE_OFFLINE, PRESENCE_ONLINE, SUPPORT_CLOSE, SUPPORT_REPLY
 from app.models.support import (
     CATEGORIES,
     KIND_LIVECHAT,
@@ -350,6 +352,9 @@ def staff_reply(
     req.status = STATUS_ACTIVE
     if req.assigned_staff_id is None:
         req.assigned_staff_id = staff.id
+    # Isi balasan tidak ikut dicatat (bisa memuat data pribadi); cukup panjangnya.
+    audit.record(db, SUPPORT_REPLY, staff, target_type="support_request", target_id=req.id,
+                 detail={"jenis": req.kind, "panjang_pesan": len(body.content)})
     db.commit()
     db.refresh(req)
     return _admin_detail(db, req)
@@ -363,7 +368,9 @@ def close_request(request_id: uuid.UUID, staff: User = Depends(require_staff), d
         req.closed_at = _now()
         req.updated_at = req.closed_at
         if req.assigned_staff_id is None:
-            req.assigned_staff_id = staff.id  # tercatat siapa yang menutup (bahan log audit F-15)
+            req.assigned_staff_id = staff.id
+        audit.record(db, SUPPORT_CLOSE, staff, target_type="support_request", target_id=req.id,
+                     detail={"jenis": req.kind, "kategori": req.category, "pesan": len(req.messages)})
         db.commit()
         db.refresh(req)
     return _admin_detail(db, req)
@@ -381,6 +388,8 @@ def set_presence(body: PresenceIn, staff: User = Depends(require_staff), db: Ses
     if p is None:
         p = StaffPresence(user_id=staff.id)
         db.add(p)
+    if bool(p.online) != body.online:  # hanya perubahan yang dicatat, bukan klik berulang
+        audit.record(db, PRESENCE_ONLINE if body.online else PRESENCE_OFFLINE, staff)
     p.online = body.online
     p.last_seen_at = _now()
     db.commit()

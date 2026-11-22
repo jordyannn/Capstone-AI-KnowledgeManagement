@@ -1,9 +1,11 @@
+from app.models.audit import AuditLog
 from app.models.chat import Conversation, Message
 from app.models.document import Chunk, Document, DocumentPage
 from app.models.support import StaffPresence, SupportMessage, SupportRequest
 from app.models.user import Role, User
 
 __all__ = [
+    "AuditLog",
     "Chunk",
     "Conversation",
     "Document",
