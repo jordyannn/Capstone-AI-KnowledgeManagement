@@ -14,7 +14,6 @@ yang cukup mirip, atau model menyatakan konteks tidak memuat jawabannya.
 """
 
 import json
-import re
 import uuid
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -26,6 +25,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.citations import fix_citations
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -42,7 +42,8 @@ Aturan:
 2. WAJIB: setiap kalimat yang memuat fakta diakhiri nomor sumber dalam kurung siku, misalnya [1] atau [2][3], sesuai nomor potongan konteks.
 3. Pertahankan angka, tanggal, dan syarat persis seperti di konteks, termasuk pengecualiannya.
 4. Jika konteks tidak memuat jawaban, atau pertanyaan di luar urusan administratif akademik, jawab tepat satu kata: {NOT_FOUND}
-5. Jawab dalam Bahasa Indonesia yang jelas dan ringkas."""
+5. Jika aturan di konteks berbeda per jenjang (diploma, sarjana, magister, doktor, ekstensi, PJJ), jawab untuk mahasiswa sarjana (S1) reguler kecuali pertanyaan menyebut jenjang lain, dan sebutkan jenjangnya. Jangan menggabungkan aturan dari jenjang yang berbeda.
+6. Jawab dalam Bahasa Indonesia yang jelas dan ringkas, dengan kalimat lengkap."""
 
 NO_CONTEXT_ANSWER = "Maaf, informasi tersebut belum ditemukan di dokumen yang tersedia. Anda dapat menghubungi staf program studi."
 NOT_FOUND_ANSWER = "Maaf, dokumen yang tersedia tidak memuat jawaban untuk pertanyaan ini. Anda dapat menghubungi staf program studi."
@@ -176,8 +177,11 @@ def _finalize(answer: str, hits: list[dict]) -> ChatResponse:
     if NOT_FOUND in answer.upper():
         return ChatResponse(answer=NOT_FOUND_ANSWER, sources=[], escalate=True, reason="model menyatakan konteks tidak memuat jawaban")
 
-    # Nomor di luar jumlah potongan (mis. [9] padahal konteks hanya 6) diabaikan.
-    cited = {int(n) for n in re.findall(r"\[(\d+)\]", answer)} & set(range(1, len(hits) + 1))
+    # Sitasi diperiksa per kalimat: angka di kalimat harus ada di potongan yang dikutip, kalau tidak
+    # dipindah ke potongan yang memuatnya. Nomor di luar jumlah potongan dibuang, dan potongan dari
+    # dokumen + halaman yang sama digabung (lihat app/api/citations.py).
+    answer, cited_list = fix_citations(answer, hits)
+    cited = set(cited_list)
     if not cited:
         # Model kecil kadang lupa menulis nomor sumber. Agar jawaban tetap bisa diverifikasi,
         # tampilkan 3 potongan konteks teratas sebagai sumber.

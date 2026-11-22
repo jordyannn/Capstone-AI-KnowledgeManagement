@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import statistics
 import time
 import unicodedata
@@ -38,6 +39,40 @@ def source_match(title: str, page: int, expected: list[dict]) -> bool:
         if norm(e["title"]) in norm(title) and (not e["pages"] or page in e["pages"]):
             return True
     return False
+
+
+def fact_citation_ok(answer: str, sources: list[dict], must: list[list[str]], expected: list[dict]) -> bool | None:
+    """Lebih ketat dari citation_ok: kalimat yang memuat kata kunci wajib harus mengutip sumber yang benar.
+
+    citation_ok lolos asal SALAH SATU sumber yang dikutip cocok, sehingga "60 poin [3]" dengan [3] halaman
+    yang salah tetap lolos bila ada sumber lain yang benar. Di sini, untuk tiap grup kata kunci, dicari
+    kalimat yang memuatnya, lalu nomor sitasi di kalimat itu harus menunjuk dokumen + halaman yang benar.
+    """
+    if not must or not expected:
+        return None
+    by_number = {s["number"]: s for s in sources}
+    # Sama dengan app/api/citations.py: titik setelah angka (nomor daftar) bukan batas kalimat, dan
+    # potongan yang hanya berisi nomor sitasi ("... 2026. [2]") ikut kalimat sebelumnya.
+    sentences: list[str] = []
+    for line in answer.split("\n"):
+        for s in re.split(r"(?<=[^\d\s][.!?])[ \t]+", line):
+            if re.fullmatch(r"\s*(\[\d+\]\s*)+[.!?]?\s*", s) and sentences:
+                sentences[-1] += " " + s
+            elif s.strip():
+                sentences.append(s)
+    for grp in must:
+        hit_sentences = [s for s in sentences if any(norm(k) in norm(s) for k in grp)]
+        if not hit_sentences:
+            return False
+        ok = False
+        for s in hit_sentences:
+            for n in re.findall(r"\[(\d+)\]", s):
+                src = by_number.get(int(n))
+                if src and source_match(src["title"], src["page"], expected):
+                    ok = True
+        if not ok:
+            return False
+    return True
 
 
 def retrieval_rank(question: str, expected: list[dict], k: int = 6) -> int | None:
@@ -85,6 +120,9 @@ def main() -> None:
             row["citation_ok"] = (
                 any(source_match(s["title"], s["page"], it["sources"]) for s in body["sources"]) if it["sources"] else None
             )
+            row["fact_citation_ok"] = (
+                fact_citation_ok(body["answer"], body["sources"], it["must"], it["sources"]) if not body["escalate"] else None
+            )
             if it["expect"] == "escalate":
                 row["pass"] = body["escalate"]
             elif it["expect"] == "answer":
@@ -92,7 +130,7 @@ def main() -> None:
             else:  # answer_or_escalate
                 row["pass"] = body["escalate"] or (bool(row["keywords_ok"]) and bool(row["citation_ok"]))
         rows.append(row)
-        print(json.dumps({k: row.get(k) for k in ("id", "rank", "pass", "escalate", "keywords_ok", "citation_ok", "seconds")}, ensure_ascii=False), flush=True)
+        print(json.dumps({k: row.get(k) for k in ("id", "rank", "pass", "escalate", "keywords_ok", "citation_ok", "fact_citation_ok", "seconds")}, ensure_ascii=False), flush=True)
 
     ranked = [r for r in rows if "rank" in r]
     summary = {
@@ -113,6 +151,10 @@ def main() -> None:
                 "answer_n": sum(1 for r in rows if r["expect"] == "answer"),
                 "false_escalate": sum(1 for r in rows if r["expect"] == "answer" and r["escalate"]),
                 "missed_escalate": sum(1 for r in rows if r["expect"] == "escalate" and not r["escalate"]),
+                # Lolos + kalimat berisi kata kunci mengutip sumber yang benar (metrik ketat, sejak 22 Nov).
+                "strict_pass": sum(1 for r in rows if r["pass"] and r.get("fact_citation_ok") is not False),
+                "fact_citation_ok": sum(1 for r in rows if r.get("fact_citation_ok") is True),
+                "fact_citation_n": sum(1 for r in rows if r.get("fact_citation_ok") is not None),
                 "seconds_median": statistics.median(secs),
                 "seconds_max": max(secs),
             }
