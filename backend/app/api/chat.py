@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.api.citations import fix_citations
 from app.api.deps import get_current_user
 from app.core.config import get_settings
+from app.core.pii import mask as mask_pii
 from app.core.db import get_db
 from app.models import Conversation, Message, User
 from app.models.chat import SENDER_ASSISTANT, SENDER_STUDENT
@@ -70,6 +71,9 @@ class ChatResponse(BaseModel):
     reason: str | None = None
     conversation_id: uuid.UUID | None = None
     message_id: uuid.UUID | None = None
+    # Jenis data pribadi yang disamarkan dari pertanyaan (F-14), mis. ["NOMOR_IDENTITAS"]. Ditampilkan
+    # sebagai pemberitahuan di UI.
+    masked: list[str] = []
 
 
 class ConversationSummary(BaseModel):
@@ -203,11 +207,12 @@ def _finalize(answer: str, hits: list[dict]) -> ChatResponse:
 
 @router.post("", response_model=ChatResponse)
 def chat(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ChatResponse:
-    question = body.question.strip()
+    # Data pribadi (NIM, telepon, surel, ...) disamarkan sebelum disimpan, dicari, dan dikirim ke model (F-14).
+    question, masked = mask_pii(body.question.strip())
     conv = _open_conversation(db, user, body, question)
     hits = _retrieve(question)
     if (early := _no_context(hits)) is not None:
-        return _save_answer(db, conv, early)
+        return _save_answer(db, conv, early.model_copy(update={"masked": masked}))
     settings = get_settings()
     try:
         r = httpx.post(f"{settings.ollama_url}/api/chat", json=_ollama_payload(question, hits, stream=False), timeout=settings.ollama_timeout_seconds)
@@ -215,7 +220,7 @@ def chat(body: ChatRequest, user: User = Depends(get_current_user), db: Session 
         answer = r.json()["message"]["content"]
     except (httpx.HTTPError, KeyError) as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model bahasa tidak dapat dihubungi.") from exc
-    return _save_answer(db, conv, _finalize(answer, hits))
+    return _save_answer(db, conv, _finalize(answer, hits).model_copy(update={"masked": masked}))
 
 
 def _sse(event: str, data: dict) -> str:
@@ -261,7 +266,7 @@ def _stream_answer(question: str, hits: list[dict]) -> Iterator[str | ChatRespon
 
 @router.post("/stream")
 def chat_stream(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
-    question = body.question.strip()
+    question, masked = mask_pii(body.question.strip())  # F-14, lihat endpoint non-streaming
     conv = _open_conversation(db, user, body, question)
     hits = _retrieve(question)  # galat retrieval tetap jadi HTTP 503 biasa, sebelum stream dimulai
     early = _no_context(hits)
@@ -270,11 +275,11 @@ def chat_stream(body: ChatRequest, user: User = Depends(get_current_user), db: S
     # sudah di-close dibuka ulang otomatis saat dipakai lagi.
     def events() -> Iterator[str]:
         if early is not None:
-            yield _sse("done", _save_answer(db, conv, early).model_dump(mode="json"))
+            yield _sse("done", _save_answer(db, conv, early.model_copy(update={"masked": masked})).model_dump(mode="json"))
             return
         for item in _stream_answer(question, hits):
             if isinstance(item, ChatResponse):
-                yield _sse("done", _save_answer(db, conv, item).model_dump(mode="json"))
+                yield _sse("done", _save_answer(db, conv, item.model_copy(update={"masked": masked})).model_dump(mode="json"))
             else:
                 yield item
 

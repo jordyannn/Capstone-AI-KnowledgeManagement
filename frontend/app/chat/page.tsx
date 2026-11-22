@@ -14,6 +14,13 @@ type Reply = {
   reason?: string | null;
   conversation_id?: string;
   message_id?: string;
+  masked?: string[];
+};
+
+const MASK_LABEL: Record<string, string> = {
+  NOMOR_IDENTITAS: "nomor identitas (NIM/NIK)",
+  TELEPON: "nomor telepon",
+  SUREL: "alamat surel",
 };
 type Message = { role: "user" | "assistant"; text: string; reply?: Reply; ms?: number; firstMs?: number };
 type ConversationSummary = { id: string; title: string; updated_at: string };
@@ -204,6 +211,7 @@ export default function ChatPage() {
           <h1 className="text-lg font-semibold">Chat Asisten</h1>
           <p className="text-xs text-gray-500">
             Jawaban disusun dari dokumen resmi program studi dan kampus, beserta sumber dan halamannya.
+            Jangan menulis data pribadi; NIM, nomor telepon, dan surel otomatis disamarkan. Percakapan dapat ditinjau staf bila Anda meminta bantuan.
           </p>
         </header>
 
@@ -233,6 +241,11 @@ export default function ChatPage() {
                       ))}
                     </ul>
                   </div>
+                )}
+                {m.reply?.masked && m.reply.masked.length > 0 && (
+                  <p className="mt-2 text-[11px] text-gray-500">
+                    🔒 Demi privasi, {m.reply.masked.map((k) => MASK_LABEL[k] ?? k).join(", ")} di pertanyaan Anda disamarkan sebelum diproses dan disimpan.
+                  </p>
                 )}
                 {m.reply?.escalate && !busy && (
                   escalating === i ? (

@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.pii import mask as mask_pii
 from app.ingest.chunking import chunk_text
 from app.ingest.embedding import Embedder
 from app.ingest.vectorstore import chunk_metadata
@@ -67,7 +68,9 @@ def index_document(db: Session, document_id: uuid.UUID, embedder: Embedder, coll
                     document_id=document.id,
                     page_number=page.page_number,
                     chunk_index=piece.index,
-                    text=piece.text,
+                    # Data pribadi disamarkan sebelum disimpan dan di-embed (F-14). char_start/char_end
+                    # tetap menunjuk teks halaman asli di document_pages.
+                    text=mask_pii(piece.text, kind="dokumen")[0],
                     char_start=piece.char_start,
                     char_end=piece.char_end,
                     token_estimate=piece.token_estimate,
