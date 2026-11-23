@@ -3,6 +3,16 @@ import os
 # Harus diset sebelum app diimpor: Settings dibaca saat import.
 os.environ.setdefault("SECRET_KEY", "test-secret-key-test-secret-key-0123456789")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
+# SSO di test selalu memakai kredensial palsu, apa pun isi environment (mis. di container yang
+# memegang client secret sungguhan). Test tidak boleh pernah menghubungi Microsoft.
+os.environ.update(
+    SSO_ENABLED="true",
+    SSO_CLIENT_ID="test-client-id",
+    SSO_CLIENT_SECRET="test-client-secret",
+    SSO_TENANT_ID="90affe0f-c2a3-4108-bb98-6ceb4e94ef15",
+    SSO_REDIRECT_URI="http://localhost:8080/api/auth/sso/callback",
+    SSO_ALLOWED_DOMAINS="telkomuniversity.ac.id,student.telkomuniversity.ac.id",
+)
 
 import pytest
 from fastapi.testclient import TestClient
@@ -46,12 +56,14 @@ def client(db):
 
 @pytest.fixture()
 def make_user(db):
-    def _make(email="dosen@example.test", role="dosen", active=True):
+    def _make(email="dosen@example.test", role="dosen", active=True, password=PASSWORD, external_id=None):
         role_row = db.query(Role).filter_by(code=role).one()
         user = User(
             email=email,
             full_name="Pengguna Uji",
-            password_hash=hash_password(PASSWORD),
+            password_hash=hash_password(password) if password else None,
+            auth_provider="local" if password else "microsoft",
+            external_id=external_id,
             role_id=role_row.id,
             is_active=active,
         )

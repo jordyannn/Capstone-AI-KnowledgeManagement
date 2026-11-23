@@ -1,0 +1,43 @@
+{"id": "tak-01", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 30.6}
+{"id": "akd-01", "rank": 1, "pass": false, "escalate": false, "keywords_ok": true, "citation_ok": false, "seconds": 19.6}
+{"id": "akd-02", "rank": 1, "pass": false, "escalate": false, "keywords_ok": true, "citation_ok": false, "seconds": 13.3}
+{"id": "akd-03", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 21.3}
+{"id": "akd-04", "rank": 3, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 20.4}
+{"id": "cuti-01", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 45.8}
+{"id": "cuti-02", "rank": 1, "pass": false, "escalate": false, "keywords_ok": true, "citation_ok": false, "seconds": 26.9}
+{"id": "kal-01", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 34.6}
+{"id": "kal-02", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 28.6}
+{"id": "kal-03", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 25.6}
+{"id": "kal-04", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 25.4}
+{"id": "kal-05", "rank": 6, "pass": false, "escalate": false, "keywords_ok": false, "citation_ok": false, "seconds": 34.3}
+{"id": "ta-01", "rank": null, "pass": false, "escalate": false, "keywords_ok": false, "citation_ok": false, "seconds": 22.5}
+{"id": "ta-02", "rank": 2, "pass": false, "escalate": false, "keywords_ok": true, "citation_ok": false, "seconds": 18.6}
+{"id": "ta-03", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 14.7}
+{"id": "ta-04", "rank": 4, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 33.3}
+{"id": "ta-05", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 12.7}
+{"id": "ta-06", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 18.3}
+{"id": "kp-01", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 22.7}
+{"id": "kp-02", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 15.0}
+{"id": "kp-03", "rank": null, "pass": false, "escalate": true, "keywords_ok": false, "citation_ok": false, "seconds": 16.5}
+{"id": "mbkm-01", "rank": 1, "pass": false, "escalate": false, "keywords_ok": false, "citation_ok": true, "seconds": 17.7}
+{"id": "ai-01", "rank": 1, "pass": false, "escalate": false, "keywords_ok": true, "citation_ok": false, "seconds": 19.1}
+{"id": "ai-02", "rank": 3, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 20.7}
+{"id": "kur-01", "rank": 3, "pass": false, "escalate": false, "keywords_ok": false, "citation_ok": false, "seconds": 15.4}
+{"id": "web-01", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 16.1}
+{"id": "web-02", "rank": 1, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 20.6}
+{"id": "web-03", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 18.3}
+{"id": "bpp-01", "rank": 2, "pass": true, "escalate": false, "keywords_ok": true, "citation_ok": true, "seconds": 22.8}
+{"id": "sempro-01", "rank": 1, "pass": true, "escalate": true, "keywords_ok": false, "citation_ok": false, "seconds": 19.2}
+{"id": "out-01", "rank": null, "pass": true, "escalate": true, "keywords_ok": null, "citation_ok": null, "seconds": 19.1}
+{"id": "out-02", "rank": null, "pass": true, "escalate": true, "keywords_ok": null, "citation_ok": null, "seconds": 18.3}
+{"id": "out-03", "rank": null, "pass": true, "escalate": true, "keywords_ok": null, "citation_ok": null, "seconds": 20.5}
+{"id": "out-04", "rank": null, "pass": true, "escalate": true, "keywords_ok": null, "citation_ok": null, "seconds": 14.6}
+SUMMARY {"label": "baseline-7b", "n": 34, "retrieval_n": 30, "top1": 14, "top3": 26, "top6": 28, "mrr": 0.664, "pass": 24, "answer_pass": 18, "answer_n": 28, "false_escalate": 1, "missed_escalate": 0, "seconds_median": 20.0, "seconds_max": 45.8}
+Traceback (most recent call last):
+  File "/tmp/eval/run_eval.py", line 129, in <module>
+    main()
+  File "/tmp/eval/run_eval.py", line 122, in main
+    out.mkdir(exist_ok=True)
+  File "/usr/local/lib/python3.12/pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+PermissionError: [Errno 13] Permission denied: '/tmp/eval/results'

@@ -1,3 +1,4 @@
 torch==2.14.1
 sentence-transformers==6.1.0
 chromadb-client==1.5.9
+pypdf==6.21.4

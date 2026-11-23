@@ -13,6 +13,17 @@ export async function fetchMe(): Promise<User | null> {
   return res.json();
 }
 
+// Gagal diam-diam menjadi "mati": tombol SSO hanya perlu tampil bila server memastikan SSO aktif.
+export async function fetchSsoEnabled(): Promise<boolean> {
+  try {
+    const res = await request("/api/auth/sso/status");
+    if (!res.ok) return false;
+    return (await res.json()).enabled === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function login(email: string, password: string): Promise<User> {
   const res = await request("/api/auth/login", {
     method: "POST",
