@@ -15,7 +15,10 @@ type Reply = {
   conversation_id?: string;
   message_id?: string;
   masked?: string[];
+  llm_used?: string | null;
+  llm_note?: string | null;
 };
+type ModelOption = { code: string; label: string; model: string; local: boolean };
 
 const MASK_LABEL: Record<string, string> = {
   NOMOR_IDENTITAS: "nomor identitas (NIM/NIK)",
@@ -31,6 +34,7 @@ type StoredMessage = {
   sources: Source[];
   escalated: boolean;
   reason: string | null;
+  llm_used?: string | null;
 };
 
 const EXAMPLES = [
@@ -44,7 +48,7 @@ function fromStored(m: StoredMessage): Message {
   return {
     role: "assistant",
     text: m.content,
-    reply: { answer: m.content, sources: m.sources, escalate: m.escalated, reason: m.reason, message_id: m.id },
+    reply: { answer: m.content, sources: m.sources, escalate: m.escalated, reason: m.reason, message_id: m.id, llm_used: m.llm_used },
   };
 }
 
@@ -58,6 +62,9 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false);
   // Indeks pesan asisten yang sedang dibuka form eskalasinya (F-10).
   const [escalating, setEscalating] = useState<number | null>(null);
+  // Pilihan model (seperti proyek KP). Pemilih hanya tampil bila admin mengaktifkan model komersial.
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [model, setModel] = useState("lokal");
   const bottom = useRef<HTMLDivElement>(null);
 
   function questionBefore(index: number): string {
@@ -73,6 +80,10 @@ export default function ChatPage() {
   useEffect(() => {
     fetchMe().then((me) => (me ? setUser(me) : router.replace("/login")));
     loadHistory();
+    fetch("/api/chat/models", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setModels)
+      .catch(() => setModels([]));
   }, [router, loadHistory]);
 
   // Pakai blok: di Chromium terbaru scrollIntoView mengembalikan Promise, dan nilai kembalian
@@ -125,7 +136,7 @@ export default function ChatPage() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, conversation_id: conversationId }),
+        body: JSON.stringify({ question, conversation_id: conversationId, model }),
       });
       if (res.status === 401) return router.replace("/login");
       if (!res.ok || !res.body) {
@@ -208,7 +219,31 @@ export default function ChatPage() {
     <AppShell user={user} active="chat" sidebarExtra={historyPanel}>
       <main className="flex min-h-0 flex-1 flex-col">
         <header className="border-b border-gray-200 bg-white px-4 py-3 md:px-8">
-          <h1 className="text-lg font-semibold">Chat Asisten</h1>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h1 className="text-lg font-semibold">Chat Asisten</h1>
+            {models.length > 1 && (
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                Model
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  disabled={busy}
+                  className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+                >
+                  {models.map((m) => (
+                    <option key={m.code} value={m.code}>
+                      {m.local ? "Lokal (server kampus)" : `${m.label} (cloud)`} · {m.model}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          {model !== "lokal" && (
+            <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+              Model cloud: pertanyaan dan potongan dokumen dikirim ke penyedia luar. Pertanyaan yang memuat data pribadi tetap dijawab model lokal.
+            </p>
+          )}
           <p className="text-xs text-gray-500">
             Jawaban disusun dari dokumen resmi program studi dan kampus, beserta sumber dan halamannya.
             Jangan menulis data pribadi; NIM, nomor telepon, dan surel otomatis disamarkan. Percakapan dapat ditinjau staf bila Anda meminta bantuan.
@@ -261,11 +296,15 @@ export default function ChatPage() {
                     </button>
                   )
                 )}
-                {m.ms !== undefined && (
+                {(m.ms !== undefined || m.reply?.llm_used) && (
                   <p className="mt-2 text-[10px] text-gray-400">
-                    {m.firstMs !== undefined && `mulai ${(m.firstMs / 1000).toFixed(1)} detik · `}selesai {(m.ms / 1000).toFixed(1)} detik
+                    {m.reply?.llm_used && `dijawab ${m.reply.llm_used}`}
+                    {m.reply?.llm_used && m.ms !== undefined && " · "}
+                    {m.firstMs !== undefined && `mulai ${(m.firstMs / 1000).toFixed(1)} detik · `}
+                    {m.ms !== undefined && `selesai ${(m.ms / 1000).toFixed(1)} detik`}
                   </p>
                 )}
+                {m.reply?.llm_note && <p className="mt-1 text-[10px] text-amber-700">ⓘ {m.reply.llm_note}</p>}
               </div>
             </div>
           ))}

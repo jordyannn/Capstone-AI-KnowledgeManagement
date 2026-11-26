@@ -40,6 +40,28 @@ class Settings(BaseSettings):
     chat_top_k: int = 4  # 4 potongan: akurasi sama dengan 6, waktu baca model turun (eval 10 Nov)
     chat_min_score: float = 0.80
 
+    # Pilihan model (seperti proyek KP): lokal (Ollama) selalu ada dan menjadi bawaan. Model komersial
+    # hanya muncul bila COMMERCIAL_LLM_ENABLED=true DAN API key penyedianya terisi. Pertanyaan yang
+    # memuat data pribadi atau kata sensitif selalu dijawab model lokal, apa pun pilihan pengguna.
+    commercial_llm_enabled: bool = False
+    commercial_max_tokens: int = 1024
+    commercial_timeout_seconds: float = 60.0
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-lite-latest"
+    mistral_api_key: str = ""
+    mistral_model: str = "mistral-small-latest"
+    cloudflare_api_token: str = ""
+    cloudflare_account_id: str = ""
+    cloudflare_model: str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    # Dipisah koma, dicocokkan sebagai bagian kata (huruf kecil).
+    sensitive_keywords: str = "rahasia,pribadi,sakit,hamil,psikolog,depresi,kekerasan,pelecehan,disabilitas,kesehatan mental"
+
+    @property
+    def sensitive_keyword_list(self) -> list[str]:
+        return [k.strip().lower() for k in self.sensitive_keywords.split(",") if k.strip()]
+
     # Akun admin awal. Dibuat oleh seed hanya jika kedua nilai terisi dan belum ada user.
     seed_admin_email: str = ""
     seed_admin_password: str = ""

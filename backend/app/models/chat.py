@@ -48,6 +48,8 @@ class Message(Base):
     escalated: Mapped[bool] = mapped_column(Boolean, default=False)
     reason: Mapped[str | None] = mapped_column(String(200), nullable=True)  # alasan eskalasi
     feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)  # F-12: "membantu" | "tidak"
+    # Model yang menjawab (pesan asisten), mis. "Lokal (qwen2.5:7b)". Untuk pemantauan dan perbandingan.
+    llm_used: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
