@@ -14,6 +14,8 @@ yang cukup mirip, atau model menyatakan konteks tidak memuat jawabannya.
 """
 
 import json
+import logging
+import re
 import uuid
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -25,6 +27,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import llm
 from app.api.citations import fix_citations
 from app.api.deps import get_current_user
 from app.core.config import get_settings
@@ -34,6 +37,7 @@ from app.models import Conversation, Message, User
 from app.models.chat import SENDER_ASSISTANT, SENDER_STUDENT
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+log = logging.getLogger("chat")
 
 NOT_FOUND = "TIDAK_DITEMUKAN"
 
@@ -53,6 +57,8 @@ NOT_FOUND_ANSWER = "Maaf, dokumen yang tersedia tidak memuat jawaban untuk perta
 class ChatRequest(BaseModel):
     question: str = Field(min_length=2, max_length=1000)
     conversation_id: uuid.UUID | None = None  # kosong = percakapan baru
+    # Kode model yang dipilih pengguna (lihat GET /api/chat/models). Kosong = model lokal.
+    model: str | None = Field(default=None, max_length=32)
 
 
 class Source(BaseModel):
@@ -74,6 +80,17 @@ class ChatResponse(BaseModel):
     # Jenis data pribadi yang disamarkan dari pertanyaan (F-14), mis. ["NOMOR_IDENTITAS"]. Ditampilkan
     # sebagai pemberitahuan di UI.
     masked: list[str] = []
+    # Model yang benar-benar menjawab, mis. "Lokal (qwen2.5:7b)" atau "Groq (llama-3.3-70b-versatile)".
+    # llm_note terisi bila berbeda dari pilihan pengguna (mis. pertanyaan sensitif dipaksa ke lokal).
+    llm_used: str | None = None
+    llm_note: str | None = None
+
+
+class ModelOption(BaseModel):
+    code: str
+    label: str
+    model: str
+    local: bool
 
 
 class ConversationSummary(BaseModel):
@@ -90,6 +107,7 @@ class StoredMessage(BaseModel):
     escalated: bool
     reason: str | None
     feedback: str | None
+    llm_used: str | None = None
     created_at: datetime
 
 
@@ -130,6 +148,7 @@ def _save_answer(db: Session, conv: Conversation, resp: ChatResponse) -> ChatRes
         sources=[s.model_dump() for s in resp.sources],
         escalated=resp.escalate,
         reason=resp.reason,
+        llm_used=resp.llm_used,
     )
     db.add(msg)
     conv.updated_at = _now()
@@ -162,22 +181,26 @@ def _no_context(hits: list[dict]) -> ChatResponse | None:
     return None
 
 
-def _ollama_payload(question: str, hits: list[dict], stream: bool) -> dict:
-    settings = get_settings()
-    return {
-        "model": settings.ollama_model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"KONTEKS:\n{_context(hits)}\n\nPERTANYAAN: {question}"},
-        ],
-        "stream": stream,
-        "keep_alive": settings.ollama_keep_alive,
-        "options": {"num_ctx": settings.ollama_num_ctx, "temperature": 0.2},
-    }
+def _messages(question: str, hits: list[dict]) -> list[dict]:
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"KONTEKS:\n{_context(hits)}\n\nPERTANYAAN: {question}"},
+    ]
+
+
+def _provider_fields(provider: llm.Provider, note: str | None) -> dict:
+    return {"llm_used": llm.label(provider), "llm_note": note}
+
+
+def _normalize(answer: str) -> str:
+    """Seragamkan keluaran antar model. gpt-oss (Groq) menulis sitasi sebagai 【4】 atau 【4†sumber】 dan
+    memakai **tebal** Markdown, sedangkan UI menampilkan teks polos dan pemeriksa sitasi mencari [4]."""
+    answer = re.sub(r"\s*【(\d+)(?:†[^】]*)?】", r" [\1]", answer)
+    return answer.replace("**", "")
 
 
 def _finalize(answer: str, hits: list[dict]) -> ChatResponse:
-    answer = answer.strip()
+    answer = _normalize(answer).strip()
     if NOT_FOUND in answer.upper():
         return ChatResponse(answer=NOT_FOUND_ANSWER, sources=[], escalate=True, reason="model menyatakan konteks tidak memuat jawaban")
 
@@ -209,18 +232,27 @@ def _finalize(answer: str, hits: list[dict]) -> ChatResponse:
 def chat(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ChatResponse:
     # Data pribadi (NIM, telepon, surel, ...) disamarkan sebelum disimpan, dicari, dan dikirim ke model (F-14).
     question, masked = mask_pii(body.question.strip())
+    # Pertanyaan yang memuat data pribadi/sensitif selalu ke model lokal (lihat app/llm.py).
+    provider, note = llm.choose(body.model, body.question, masked)
     conv = _open_conversation(db, user, body, question)
     hits = _retrieve(question)
     if (early := _no_context(hits)) is not None:
         return _save_answer(db, conv, early.model_copy(update={"masked": masked}))
-    settings = get_settings()
     try:
-        r = httpx.post(f"{settings.ollama_url}/api/chat", json=_ollama_payload(question, hits, stream=False), timeout=settings.ollama_timeout_seconds)
-        r.raise_for_status()
-        answer = r.json()["message"]["content"]
-    except (httpx.HTTPError, KeyError) as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model bahasa tidak dapat dihubungi.") from exc
-    return _save_answer(db, conv, _finalize(answer, hits).model_copy(update={"masked": masked}))
+        answer = llm.generate(provider, _messages(question, hits))
+    except llm.LLMError as exc:
+        if provider.code == llm.LOCAL:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model bahasa tidak dapat dihubungi.") from exc
+        # Model cloud gagal atau kena batas kuota (free tier Groq: 8.000 token/menit, ±2–3 pertanyaan):
+        # jawaban tetap diberikan oleh model lokal, supaya layanan tetap tersedia.
+        log.warning("model %s gagal (%s), dialihkan ke lokal", provider.code, exc)
+        provider, note = llm.local(), f"{provider.label} sedang tidak tersedia ({exc.reason}), dijawab model lokal"
+        try:
+            answer = llm.generate(provider, _messages(question, hits))
+        except llm.LLMError as exc2:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Model bahasa tidak dapat dihubungi.") from exc2
+    resp = _finalize(answer, hits).model_copy(update={"masked": masked, **_provider_fields(provider, note)})
+    return _save_answer(db, conv, resp)
 
 
 def _sse(event: str, data: dict) -> str:
@@ -231,42 +263,56 @@ def _sse(event: str, data: dict) -> str:
 _HOLD = len(NOT_FOUND) + 2
 
 
-def _stream_answer(question: str, hits: list[dict]) -> Iterator[str | ChatResponse]:
-    """Menghasilkan event SSE "token"/"error" (str), lalu ChatResponse final sebagai item terakhir."""
-    settings = get_settings()
+def _stream_answer(question: str, hits: list[dict], provider: llm.Provider, note: str | None = None) -> Iterator[str | ChatResponse]:
+    """Menghasilkan event SSE "token"/"error" (str), lalu ChatResponse final sebagai item terakhir.
+
+    Bila model cloud gagal sebelum mengirim teks apa pun (mis. batas kuota), dialihkan ke model lokal.
+    """
+    if provider.code != llm.LOCAL:
+        pieces = llm.stream(provider, _messages(question, hits))
+        try:
+            first = next(pieces, "")
+        except llm.LLMError as exc:
+            log.warning("model %s gagal (%s), dialihkan ke lokal", provider.code, exc)
+            note = f"{provider.label} sedang tidak tersedia ({exc.reason}), dijawab model lokal"
+            provider = llm.local()
+        else:
+            yield from _relay(question, hits, provider, note, _chain(first, pieces))
+            return
+    yield from _relay(question, hits, provider, note, llm.stream(provider, _messages(question, hits)))
+
+
+def _chain(first: str, rest: Iterator[str]) -> Iterator[str]:
+    if first:
+        yield first
+    yield from rest
+
+
+def _relay(question: str, hits: list[dict], provider: llm.Provider, note: str | None, pieces: Iterator[str]) -> Iterator[str | ChatResponse]:
     answer = ""
     released = False
     try:
-        with httpx.stream(
-            "POST", f"{settings.ollama_url}/api/chat", json=_ollama_payload(question, hits, stream=True), timeout=settings.ollama_timeout_seconds
-        ) as r:
-            r.raise_for_status()
-            for line in r.iter_lines():
-                if not line:
-                    continue
-                part = json.loads(line)
-                piece = part.get("message", {}).get("content", "")
-                answer += piece
-                if not released:
-                    head = answer.lstrip()
-                    if len(head) >= _HOLD and not head.upper().startswith("TIDAK"):
-                        released = True
-                        yield _sse("token", {"text": answer})
-                elif piece:
-                    yield _sse("token", {"text": piece})
-                if part.get("done"):
-                    break
-    except (httpx.HTTPError, json.JSONDecodeError):
+        for piece in pieces:
+            answer += piece
+            if not released:
+                head = answer.lstrip()
+                if len(head) >= _HOLD and not head.upper().startswith("TIDAK"):
+                    released = True
+                    yield _sse("token", {"text": answer})
+            else:
+                yield _sse("token", {"text": piece})
+    except llm.LLMError:
         yield _sse("error", {"detail": "Model bahasa tidak dapat dihubungi."})
         return
     if not released and not answer.strip().upper().startswith("TIDAK"):
         yield _sse("token", {"text": answer})  # jawaban sangat pendek
-    yield _finalize(answer, hits)
+    yield _finalize(answer, hits).model_copy(update=_provider_fields(provider, note))
 
 
 @router.post("/stream")
 def chat_stream(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
     question, masked = mask_pii(body.question.strip())  # F-14, lihat endpoint non-streaming
+    provider, note = llm.choose(body.model, body.question, masked)
     conv = _open_conversation(db, user, body, question)
     hits = _retrieve(question)  # galat retrieval tetap jadi HTTP 503 biasa, sebelum stream dimulai
     early = _no_context(hits)
@@ -277,14 +323,21 @@ def chat_stream(body: ChatRequest, user: User = Depends(get_current_user), db: S
         if early is not None:
             yield _sse("done", _save_answer(db, conv, early.model_copy(update={"masked": masked})).model_dump(mode="json"))
             return
-        for item in _stream_answer(question, hits):
+        for item in _stream_answer(question, hits, provider, note):
             if isinstance(item, ChatResponse):
-                yield _sse("done", _save_answer(db, conv, item.model_copy(update={"masked": masked})).model_dump(mode="json"))
+                final = item.model_copy(update={"masked": masked})
+                yield _sse("done", _save_answer(db, conv, final).model_dump(mode="json"))
             else:
                 yield item
 
     # X-Accel-Buffering: Nginx meneruskan tiap event langsung, tidak ditahan di buffer.
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/models", response_model=list[ModelOption])
+def list_models(user: User = Depends(get_current_user)) -> list[ModelOption]:
+    """Model yang bisa dipilih. Lokal selalu pertama; komersial hanya bila diaktifkan dan punya API key."""
+    return [ModelOption(code=p.code, label=p.label, model=p.model, local=p.code == llm.LOCAL) for p in llm.available()]
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])

@@ -64,8 +64,32 @@ def test_daftar_bernomor_tetap_utuh():
     p = h("Pedoman Akademik 2026", 51, "Permohonan diajukan paling lambat di masa PRS. Cuti maksimal 2 semester.")
     text = "Caranya:\n\n1. Ajukan paling lambat masa PRS [1].\n2. Cuti maksimal 2 semester [1]."
     answer, cited = fix_citations(text, [KURIKULUM, p])
-    assert answer == "Caranya:\n\n1. Ajukan paling lambat masa PRS [1].\n2. Cuti maksimal 2 semester [2]."
-    assert cited == [1, 2]
+    # Butir 1 tanpa angka: [1] (remedial) tidak berbagi kata, [2] berbagi "paling", "lambat", "masa".
+    assert answer == "Caranya:\n\n1. Ajukan paling lambat masa PRS [2].\n2. Cuti maksimal 2 semester [2]."
+    assert cited == [2]
+
+
+def test_kalimat_tanpa_sitasi_tidak_ditambahi_sumber():
+    # Regresi 23 Nov: daftar syarat cuti tanpa sitasi diberi sumber Kalender karena memuat "1" dan "2".
+    kalender = h("Kalender Pendidikan 2026", 1, "Senin 1 2 3 Rencana Studi Semester 2025-2")
+    pedoman = h("Pedoman Akademik 2026", 51, "Cuti akademik dibatasi maksimal 2 (dua) semester, tingkat-1.")
+    text = "1. Cuti tidak boleh sebelum tingkat-1.\n2. Cuti maksimal 2 semester."
+    answer, cited = fix_citations(text, [kalender, pedoman])
+    assert answer == text and cited == []
+
+
+def test_kalimat_tanpa_sitasi_dengan_angka_khas_diberi_sumber():
+    p20 = h("Pedoman Akademik 2026", 20, "Beban studi maksimal 24 SKS per semester untuk IPK di atas 3.00")
+    answer, cited = fix_citations("24 SKS", [KURIKULUM, p20])
+    assert answer == "24 SKS [2]" and cited == [2]
+
+
+def test_angka_kecil_dipindah_ke_potongan_yang_berbagi_kata():
+    kalender = h("Kalender Pendidikan 2026", 1, "Senin 1 2 3 Rencana Studi Semester 2025-2")
+    pedoman = h("Pedoman Akademik 2026", 51, "Cuti akademik dibatasi maksimal 2 (dua) semester selama masa studi.")
+    nota = h("Nota", 1, "tidak relevan")
+    answer, cited = fix_citations("Cuti akademik maksimal 2 semester selama masa studi [3].", [kalender, pedoman, nota])
+    assert answer == "Cuti akademik maksimal 2 semester selama masa studi [2]." and cited == [2]
 
 
 def test_sitasi_setelah_titik_ikut_kalimat_sebelumnya():

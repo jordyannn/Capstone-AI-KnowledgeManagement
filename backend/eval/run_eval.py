@@ -89,6 +89,9 @@ def main() -> None:
     ap.add_argument("--label", default="run")
     ap.add_argument("--only", default="")
     ap.add_argument("--no-chat", action="store_true", help="hanya ukur retrieval")
+    ap.add_argument("--model", default=None, help="kode model (lokal|groq|gemini|mistral|cloudflare); kosong = lokal")
+    ap.add_argument("--sleep", type=float, default=0.0,
+                    help="jeda antar pertanyaan (detik); untuk model cloud gratis yang dibatasi token/menit")
     args = ap.parse_args()
 
     items = [json.loads(l) for l in (HERE / "eval_set.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -108,12 +111,16 @@ def main() -> None:
             row["rank"] = retrieval_rank(it["question"], it["sources"])
         if not args.no_chat:
             t = time.time()
-            r = client.post(f"{API}/chat", json={"question": it["question"]})
+            if args.sleep and rows:
+                time.sleep(args.sleep)
+            r = client.post(f"{API}/chat", json={"question": it["question"], "model": args.model})
             row["seconds"] = round(time.time() - t, 1)
             r.raise_for_status()
             body = r.json()
             ans = norm(body["answer"])
             row["escalate"] = body["escalate"]
+            row["llm_used"] = body.get("llm_used")
+            row["llm_note"] = body.get("llm_note")
             row["answer"] = body["answer"][:400]
             row["cited"] = [f'{s["title"][:40]} hal. {s["page"]}' for s in body["sources"]]
             row["keywords_ok"] = all(any(norm(k) in ans for k in grp) for grp in it["must"]) if it["must"] else None
@@ -135,6 +142,9 @@ def main() -> None:
     ranked = [r for r in rows if "rank" in r]
     summary = {
         "label": args.label,
+        "model": args.model or "lokal",
+        # Berapa jawaban yang benar-benar dari model yang diminta (sisanya dialihkan ke lokal).
+        "answered_by_requested": sum(1 for r in rows if (r.get("llm_used") or "").lower().startswith((args.model or "lokal")[:4])),
         "n": len(rows),
         "retrieval_n": len(ranked),
         "top1": sum(1 for r in ranked if r["rank"] == 1),
