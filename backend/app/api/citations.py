@@ -37,6 +37,33 @@ def _supports(chunk_text: str, facts: set[str]) -> bool:
     return facts <= found
 
 
+def _distinctive(fact: str) -> bool:
+    """Angka yang cukup khas untuk menunjuk sumber: ≥ 10 atau desimal (3.00)."""
+    try:
+        return "." in fact or float(fact) >= 10
+    except ValueError:
+        return False
+
+
+_WORD = re.compile(r"[a-zA-Z]{3,}")
+# Kata umum yang muncul di hampir semua potongan; tidak membedakan sumber.
+_COMMON = {"yang", "dengan", "untuk", "dalam", "atau", "pada", "dari", "harus", "dapat", "tidak", "akan",
+           "sebagai", "berikut", "adalah", "mahasiswa", "telkom", "universitas", "tersebut", "bagi", "oleh"}
+
+
+def _words(text: str) -> set[str]:
+    return {w.lower() for w in _WORD.findall(text)} - _COMMON
+
+
+def _overlap(sentence: str, chunk_text: str) -> int:
+    return len(_words(sentence) & _words(chunk_text))
+
+
+# Ambang untuk sitasi tanpa angka: sumber yang dikutip dianggap salah bila hampir tidak berbagi kata
+# dengan kalimatnya, sementara ada potongan lain yang jelas lebih cocok.
+_MIN_SHARED = 3
+
+
 _ONLY_MARKERS = re.compile(r"\s*(\[\d+\]\s*)+[.!?]?\s*")
 
 
@@ -83,12 +110,29 @@ def fix_citations(answer: str, hits: list[dict]) -> tuple[str, list[int]]:
         markers = [m for m in raw if m in valid]
         facts = _numbers(part)
         new_markers = markers
-        if facts:
-            current_ok = bool(markers) and _supports(" ".join(hits[m - 1]["text"] for m in markers), facts)
-            if not current_ok:
+        if facts and markers:
+            # Model mengutip sesuatu: pastikan angkanya ada di sana. Kalau tidak, pindah ke potongan yang
+            # memuat angka itu DAN paling banyak berbagi kata dengan kalimatnya (angka kecil seperti "1"
+            # atau "2" ada di hampir semua potongan, jadi angka saja tidak cukup untuk memilih).
+            if not _supports(" ".join(hits[m - 1]["text"] for m in markers), facts):
                 supporting = [i for i, h in enumerate(hits, start=1) if _supports(h["text"], facts)]
                 if supporting:
-                    new_markers = [supporting[0]]
+                    new_markers = [max(supporting, key=lambda i: (_overlap(part, hits[i - 1]["text"]), -i))]
+        elif markers:
+            # Kalimat tanpa angka: ganti sumber hanya bila yang dikutip nyaris tidak berbagi kata dengan
+            # kalimat, sementara potongan lain jelas lebih cocok (≥ 3 kata dan ≥ 2× lipat).
+            current = max(_overlap(part, hits[m - 1]["text"]) for m in markers)
+            best = max(range(1, len(hits) + 1), key=lambda i: (_overlap(part, hits[i - 1]["text"]), -i))
+            best_score = _overlap(part, hits[best - 1]["text"])
+            if best_score >= _MIN_SHARED and best_score >= 2 * max(current, 1):
+                new_markers = [best]
+        elif facts and any(_distinctive(f) for f in facts):
+            # Kalimat TANPA sitasi dari model hanya ditambahi sumber bila memuat angka yang khas (≥ 10,
+            # mis. "24 SKS", "10%"). Angka kecil seperti "1" dan "2" ada di hampir semua potongan:
+            # 23 Nov, daftar syarat cuti sempat diberi sumber Kalender karena memuat "tingkat-1" dan "2 semester".
+            supporting = [i for i, h in enumerate(hits, start=1) if _supports(h["text"], facts)]
+            if supporting:
+                new_markers = [max(supporting, key=lambda i: (_overlap(part, hits[i - 1]["text"]), -i))]
         new_markers = sorted({canon[m] for m in new_markers})
         cited.update(new_markers)
         # Kalimat ditulis ulang hanya bila sitasinya berubah (atau ada nomor tak valid). Kalau tidak,
